@@ -8,14 +8,22 @@ import { useEffect, useState } from 'react';
 export function useAsyncData<T>(fetcher: () => Promise<T>, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
+    setError(null);
 
     fetcher()
       .then((result) => {
         if (isMounted) setData(result);
+      })
+      .catch((err) => {
+        if (isMounted) {
+          console.error('useAsyncData error:', err);
+          setError(err instanceof Error ? err : new Error(String(err)));
+        }
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -27,5 +35,5 @@ export function useAsyncData<T>(fetcher: () => Promise<T>, deps: unknown[] = [])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
-  return { data, loading };
+  return { data, loading, error };
 }

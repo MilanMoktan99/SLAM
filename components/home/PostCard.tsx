@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { AuthColors, AuthFonts } from '@/constants/authTheme';
+import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Post } from '@/types/models';
 
 type Props = {
   post: Post;
-  onPressLike?: () => void;
+  onToggleLike?: () => void;
   onPressComment?: () => void;
   onPressShare?: () => void;
   onPressBookmark?: () => void;
@@ -18,59 +18,51 @@ function formatCount(count: number): string {
   return String(count);
 }
 
-export default function PostCard({
-  post,
-  onPressLike,
-  onPressComment,
-  onPressShare,
-  onPressBookmark,
-}: Props) {
-
+// Liked state now lives in Firestore (via usePostsFeed), so this component
+// is fully controlled by its parent — it just renders post.likedByMe/likeCount
+// and reports taps upward, rather than managing its own like state.
+export default function PostCard({ post, onToggleLike, onPressComment, onPressShare, onPressBookmark }: Props) {
   const colors = useThemeColors();
- 
-  // Local like state — visual only for now, resets on remount. Wire this to
-  // a likesService (same in-memory-now/Firestore-later pattern as
-  // connectionsService) once likes need to persist across screens.
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(post.likeCount);
- 
-  const toggleLike = () => {
-    setLiked((prev) => !prev);
-    setLikeCount((count) => (liked ? count - 1 : count + 1));
-  };
+  const liked = !!post.likedByMe;
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.header}>
         <Image source={{ uri: post.authorAvatar }} style={styles.avatar} />
         <View style={styles.headerText}>
-          <Text style={styles.authorName}>{post.authorName}</Text>
-          <Text style={styles.postedAt}>{post.postedAt}</Text>
+          <Text style={[styles.authorName, { color: colors.text }]}>{post.authorName}</Text>
+          <Text style={[styles.postedAt, { color: colors.subtleText }]}>{post.postedAt}</Text>
         </View>
         <TouchableOpacity style={styles.menuButton}>
-          <Ionicons name="ellipsis-horizontal" size={18} color={AuthColors.subtleText} />
+          <Ionicons name="ellipsis-horizontal" size={18} color={colors.subtleText} />
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.content}>{post.content}</Text>
+      <Text style={[styles.content, { color: colors.text }]}>{post.content}</Text>
 
-      {post.image ? <Image source={{ uri: post.image }} style={styles.postImage} /> : null}
+      {post.image ? (
+        <Image source={{ uri: post.image }} style={[styles.postImage, { backgroundColor: colors.background }]} />
+      ) : null}
 
       <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.actionItem} onPress={onPressLike}>
-          <Ionicons name="heart" size={18} color={AuthColors.primary} />
-          <Text style={styles.actionText}>{formatCount(post.likeCount)}</Text>
+        <TouchableOpacity style={styles.actionItem} onPress={onToggleLike}>
+          <Ionicons
+            name={liked ? 'heart' : 'heart-outline'}
+            size={18}
+            color={liked ? colors.primary : colors.subtleText}
+          />
+          <Text style={[styles.actionText, { color: colors.subtleText }]}>{formatCount(post.likeCount)}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionItem} onPress={onPressComment}>
-          <Ionicons name="chatbubble-outline" size={17} color={AuthColors.subtleText} />
-          <Text style={styles.actionText}>{formatCount(post.commentCount)}</Text>
+          <Ionicons name="chatbubble-outline" size={17} color={colors.subtleText} />
+          <Text style={[styles.actionText, { color: colors.subtleText }]}>{formatCount(post.commentCount)}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionItem} onPress={onPressShare}>
-          <Ionicons name="share-outline" size={18} color={AuthColors.subtleText} />
+          <Ionicons name="share-outline" size={18} color={colors.subtleText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }} />
         <TouchableOpacity onPress={onPressBookmark}>
-          <Ionicons name="bookmark-outline" size={18} color={AuthColors.subtleText} />
+          <Ionicons name="bookmark-outline" size={18} color={colors.subtleText} />
         </TouchableOpacity>
       </View>
     </View>
@@ -78,30 +70,16 @@ export default function PostCard({
 }
 
 const styles = StyleSheet.create({
-  card: {
-    marginHorizontal: 20,
-    marginBottom: 16,
-    backgroundColor: AuthColors.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: AuthColors.border,
-    padding: 16,
-  },
+  card: { marginHorizontal: 20, marginBottom: 16, borderRadius: 16, borderWidth: 1, padding: 16 },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   avatar: { width: 38, height: 38, borderRadius: 19, marginRight: 10 },
   headerText: { flex: 1 },
-  authorName: { fontSize: 14, fontFamily: AuthFonts.bold, color: AuthColors.text },
-  postedAt: { fontSize: 11, color: AuthColors.subtleText, fontFamily: AuthFonts.regular, marginTop: 1 },
+  authorName: { fontSize: 14, fontFamily: AuthFonts.bold },
+  postedAt: { fontSize: 11, fontFamily: AuthFonts.regular, marginTop: 1 },
   menuButton: { padding: 4 },
-  content: { fontSize: 13, color: AuthColors.text, lineHeight: 19, fontFamily: AuthFonts.regular },
-  postImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-    marginTop: 12,
-    backgroundColor: AuthColors.inputBackground,
-  },
+  content: { fontSize: 13, lineHeight: 19, fontFamily: AuthFonts.regular },
+  postImage: { width: '100%', height: 200, borderRadius: 12, marginTop: 12 },
   actionsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14, gap: 18 },
   actionItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  actionText: { fontSize: 12, color: AuthColors.subtleText, fontFamily: AuthFonts.medium },
+  actionText: { fontSize: 12, fontFamily: AuthFonts.medium },
 });

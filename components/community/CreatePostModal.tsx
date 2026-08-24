@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   Image,
+  ActivityIndicator,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -19,40 +20,57 @@ type Props = {
   userName: string;
   userAvatar: string;
   onClose: () => void;
-  onSubmit: (content: string) => void;
+  onSubmit: (content: string) => Promise<void>;
 };
 
 export default function CreatePostModal({ visible, userName, userAvatar, onClose, onSubmit }: Props) {
   const colors = useThemeColors();
   const [content, setContent] = useState('');
+  const [posting, setPosting] = useState(false);
+  const [error, setError] = useState('');
 
-  const handlePost = () => {
-    if (!content.trim()) return;
-    onSubmit(content.trim());
-    setContent('');
+  const handlePost = async () => {
+    if (!content.trim() || posting) return;
+    setPosting(true);
+    setError('');
+    try {
+      await onSubmit(content.trim());
+      setContent(''); // only clear on confirmed success
+    } catch (err: any) {
+      console.error('Post creation failed:', err);
+      setError(err?.message ?? 'Something went wrong posting. Please try again.');
+    } finally {
+      setPosting(false);
+    }
   };
+
+  const canPost = content.trim().length > 0 && !posting;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.backdrop}>
         <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity onPress={onClose} disabled={posting}>
               <Text style={[styles.cancelText, { color: colors.subtleText }]}>Cancel</Text>
             </TouchableOpacity>
             <Text style={[styles.title, { color: colors.text }]}>Create Post</Text>
             <TouchableOpacity
               onPress={handlePost}
-              disabled={!content.trim()}
-              style={[styles.postButton, { backgroundColor: content.trim() ? colors.primary : colors.border }]}
+              disabled={!canPost}
+              style={[styles.postButton, { backgroundColor: canPost ? colors.primary : colors.border }]}
             >
-              <Text
-                style={[styles.postText, { color: content.trim() ? colors.onPrimary : colors.subtleText }]}
-              >
-                Post
-              </Text>
+              {posting ? (
+                <ActivityIndicator size="small" color={colors.onPrimary} />
+              ) : (
+                <Text style={[styles.postText, { color: canPost ? colors.onPrimary : colors.subtleText }]}>
+                  Post
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
+
+          {error ? <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text> : null}
 
           <View style={styles.authorRow}>
             <Image source={{ uri: userAvatar }} style={styles.avatar} />
@@ -67,6 +85,7 @@ export default function CreatePostModal({ visible, userName, userAvatar, onClose
             onChangeText={setContent}
             multiline
             autoFocus
+            editable={!posting}
           />
 
           <View style={styles.imageRow}>
@@ -85,8 +104,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   cancelText: { fontSize: 14, fontFamily: AuthFonts.regular },
   title: { fontSize: 15, fontFamily: AuthFonts.bold },
-  postButton: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 7 },
+  postButton: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 7, minWidth: 52, alignItems: 'center' },
   postText: { fontSize: 13, fontFamily: AuthFonts.bold },
+  errorText: { fontSize: 12, fontFamily: AuthFonts.medium, marginBottom: 12 },
   authorRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   avatar: { width: 34, height: 34, borderRadius: 17 },
   authorName: { fontSize: 14, fontFamily: AuthFonts.bold },

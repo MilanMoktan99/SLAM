@@ -1,34 +1,76 @@
 import React, { useState } from 'react';
-import { View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, Share } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAsyncData } from '@/hooks/useAsyncData';
-import { getLatestPosts, createPost } from '@/services/postsService';
-import { getCurrentUser } from '@/services/userService';
+import { usePostsFeed } from '@/hooks/usePostsFeed';
+import { useAuth } from '@/context/AuthContext';
+import { createPost } from '@/services/postsService';
+import { getDisplayProfile } from '@/services/profileService';
+import { seedPosts } from '@/scripts/seedPosts'; // TEMP — remove this import once you've seeded once
+import { Post } from '@/types/models';
 
 import PostCard from '@/components/home/PostCard';
 import PostComposer from '@/components/community/PostComposer';
 import CreatePostModal from '@/components/community/CreatePostModal';
+import CommentsModal from '@/components/community/CommentsModal';
 
 export default function Community() {
   const colors = useThemeColors();
   const tabBarHeight = useBottomTabBarHeight();
+  const { user } = useAuth();
 
-  const [refreshKey, setRefreshKey] = useState(0);
+  const { posts, loading: postsLoading, refresh, toggleLike, bumpCommentCount } = usePostsFeed();
+  const { data: myProfile, loading: profileLoading } = useAsyncData(
+    () => getDisplayProfile(user!.uid),
+    [user?.uid]
+  );
+
   const [modalVisible, setModalVisible] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+  const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
 
-  const { data: posts, loading: postsLoading } = useAsyncData(getLatestPosts, [refreshKey]);
-  const { data: currentUser, loading: userLoading } = useAsyncData(getCurrentUser);
+  const isLoading = postsLoading || profileLoading;
 
-  const isLoading = postsLoading || userLoading;
+  // Always have something usable to show, even if the profile fetch failed —
+  // this is what guarantees the composer/modal are never just silently
+  // missing. Once myProfile loads, it takes over with the real name/avatar.
+  const displayName = myProfile?.name ?? user?.email?.split('@')[0] ?? 'SLAM Member';
+  const displayAvatar =
+    myProfile?.avatar ??
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=E85D75&color=fff`;
 
   const handleSubmitPost = async (content: string) => {
-    await createPost(content);
+    // No try/catch here on purpose — if this throws, CreatePostModal's own
+    // handler catches it and shows the error inline, and the modal stays
+    // open instead of closing on a failed post.
+    await createPost(content, user!.uid);
+    refresh();
     setModalVisible(false);
-    setRefreshKey((key) => key + 1); // triggers useAsyncData to refetch the feed
+  };
+
+  const handleShare = (post: Post) => {
+    Share.share({
+      message: `${post.authorName} on SLAM: "${post.content}"`,
+    });
+  };
+
+  // TEMP — one-time button to push data/mockPosts.ts into Firestore.
+  // Delete this handler and the button in the JSX below once you've run it once.
+  const handleSeed = async () => {
+    setSeeding(true);
+    try {
+      const count = await seedPosts();
+      Alert.alert('Seeded', `Added ${count} sample posts to Firestore.`);
+      refresh();
+    } catch (err: any) {
+      Alert.alert('Seeding failed', err?.message ?? 'Check your Firestore rules/config.');
+    } finally {
+      setSeeding(false);
+    }
   };
 
   return (
@@ -56,16 +98,34 @@ export default function Community() {
           contentContainerStyle={{ paddingTop: 16, paddingBottom: tabBarHeight + 90 }}
           showsVerticalScrollIndicator={false}
         >
-          {currentUser ? (
-            <PostComposer
-              userName={currentUser.name}
-              userAvatar={currentUser.avatar}
-              onPress={() => setModalVisible(true)}
-            />
-          ) : null}
+          {/* TEMP — delete this button once you've seeded Firestore once */}
+          <TouchableOpacity
+            style={[styles.seedButton, { borderColor: colors.primary }]}
+            onPress={handleSeed}
+            disabled={seeding}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.seedButtonText, { color: colors.primary }]}>
+              {seeding ? 'Seeding…' : 'DEV: Seed Sample Posts'}
+            </Text>
+          </TouchableOpacity>
 
-          {posts && posts.length > 0 ? (
-            posts.map((post) => <PostCard key={post.id} post={post} />)
+          <PostComposer
+            userName={displayName}
+            userAvatar={displayAvatar}
+            onPress={() => setModalVisible(true)}
+          />
+
+          {posts.length > 0 ? (
+            posts.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                onToggleLike={() => toggleLike(post.id)}
+                onPressComment={() => setCommentsPostId(post.id)}
+                onPressShare={() => handleShare(post)}
+              />
+            ))
           ) : (
             <Text style={[styles.emptyText, { color: colors.subtleText }]}>
               No posts yet — be the first to share something!
@@ -82,15 +142,21 @@ export default function Community() {
         <Ionicons name="add" size={26} color={colors.onPrimary} />
       </TouchableOpacity>
 
-      {currentUser ? (
-        <CreatePostModal
-          visible={modalVisible}
-          userName={currentUser.name}
-          userAvatar={currentUser.avatar}
-          onClose={() => setModalVisible(false)}
-          onSubmit={handleSubmitPost}
-        />
-      ) : null}
+      <CreatePostModal
+        visible={modalVisible}
+        userName={displayName}
+        userAvatar={displayAvatar}
+        onClose={() => setModalVisible(false)}
+        onSubmit={handleSubmitPost}
+      />
+
+      <CommentsModal
+        visible={!!commentsPostId}
+        postId={commentsPostId}
+        userAvatar={displayAvatar}
+        onClose={() => setCommentsPostId(null)}
+        onCommentAdded={bumpCommentCount}
+      />
     </View>
   );
 }
@@ -113,6 +179,16 @@ const styles = StyleSheet.create({
   createButtonText: { fontSize: 13, fontFamily: AuthFonts.bold },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: { textAlign: 'center', marginTop: 40, fontSize: 13, fontFamily: AuthFonts.regular },
+  seedButton: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  seedButtonText: { fontSize: 12, fontFamily: AuthFonts.bold },
   fab: {
     position: 'absolute',
     right: 20,

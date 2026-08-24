@@ -1,6 +1,7 @@
 import { doc, getDoc, updateDoc, runTransaction, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { awardPoints } from '@/services/pointsService';
+import { getDisplayProfile } from '@/services/profileService';
 
 type ActionResult = { success: boolean; message?: string };
 
@@ -20,13 +21,9 @@ export async function rsvpToEvent(eventId: string, userId: string): Promise<Acti
   const eventRef = doc(db, 'events', eventId);
   const rsvpRef = doc(db, 'events', eventId, 'rsvps', userId);
 
-  // Pull the user's profile once, outside the transaction, and denormalize
-  // name/avatar onto the RSVP doc — avoids extra lookups when the attendee
-  // list renders. No real avatar upload yet, so this generates an
-  // initials-based placeholder until Profile photo uploads are wired up.
-  const userSnap = await getDoc(doc(db, 'users', userId));
-  const userName = userSnap.exists() ? (userSnap.data().name ?? 'SLAM Member') : 'SLAM Member';
-  const userAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=E85D75&color=fff`;
+  // Denormalize name/avatar onto the RSVP doc so the attendee list doesn't
+  // need extra lookups later.
+  const { name: userName, avatar: userAvatar } = await getDisplayProfile(userId);
 
   try {
     await runTransaction(db, async (transaction) => {

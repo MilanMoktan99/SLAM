@@ -1,15 +1,18 @@
-import React from 'react';
-import { View, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, ScrollView, ActivityIndicator, StyleSheet, Share } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { router } from 'expo-router';
 
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAsyncData } from '@/hooks/useAsyncData';
+import { usePostsFeed } from '@/hooks/usePostsFeed';
+import { useAuth } from '@/context/AuthContext';
 
 import { getUpcomingEvents } from '@/services/eventsService';
 import { getSuggestedPeople } from '@/services/peopleService';
-import { getLatestPosts } from '@/services/postsService';
 import { getCurrentUser } from '@/services/userService';
+import { getDisplayProfile } from '@/services/profileService';
+import { Post } from '@/types/models';
 
 import AppHeader from '@/components/home/AppHeader';
 import SectionHeader from '@/components/home/SectionHeader';
@@ -17,18 +20,31 @@ import EventCard from '@/components/home/EventCard';
 import PersonCard from '@/components/home/PersonCard';
 import PostCard from '@/components/home/PostCard';
 import VipBanner from '@/components/home/VipBanner';
+import CommentsModal from '@/components/community/CommentsModal';
 
 export default function Home() {
   const colors = useThemeColors();
   const tabBarHeight = useBottomTabBarHeight();
+  const { user } = useAuth();
+  const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
 
   const { data: events, loading: eventsLoading } = useAsyncData(getUpcomingEvents);
   const { data: people, loading: peopleLoading } = useAsyncData(getSuggestedPeople);
-  const { data: posts, loading: postsLoading } = useAsyncData(getLatestPosts);
+  const { posts, loading: postsLoading, toggleLike, bumpCommentCount } = usePostsFeed();
   const { data: currentUser, loading: userLoading } = useAsyncData(getCurrentUser);
+  const { data: myProfile } = useAsyncData(() => getDisplayProfile(user!.uid), [user?.uid]);
 
   const isLoading = eventsLoading || peopleLoading || postsLoading || userLoading;
   const nextEvent = events?.[0];
+  const displayAvatar =
+    myProfile?.avatar ??
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.email?.split('@')[0] ?? 'Member')}&background=E85D75&color=fff`;
+
+  const handleShare = (post: Post) => {
+    Share.share({
+      message: `${post.authorName} on SLAM: "${post.content}"`,
+    });
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -84,7 +100,13 @@ export default function Home() {
                 onPressAction={() => router.push('/(tabs)/community')}
               />
               {posts.slice(0, 2).map((post) => (
-                <PostCard key={post.id} post={post} />
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  onToggleLike={() => toggleLike(post.id)}
+                  onPressComment={() => setCommentsPostId(post.id)}
+                  onPressShare={() => handleShare(post)}
+                />
               ))}
             </View>
           ) : null}
@@ -98,6 +120,14 @@ export default function Home() {
           ) : null}
         </ScrollView>
       )}
+
+      <CommentsModal
+        visible={!!commentsPostId}
+        postId={commentsPostId}
+        userAvatar={displayAvatar}
+        onClose={() => setCommentsPostId(null)}
+        onCommentAdded={bumpCommentCount}
+      />
     </View>
   );
 }

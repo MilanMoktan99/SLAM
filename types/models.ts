@@ -53,9 +53,18 @@ export type Post = {
   image?: string;
   likeCount: number;
   commentCount: number;
+  likedByMe?: boolean; // populated client-side when a userId is known
 };
 
 export type VipPlan = 'monthly' | 'annual';
+
+export type Comment = {
+  id: string;
+  authorName: string;
+  authorAvatar: string;
+  text: string;
+  postedAt: string;
+};
 
 export type CurrentUser = {
   id: string;
