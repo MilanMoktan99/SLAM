@@ -85,6 +85,18 @@ export type AppNotification = {
   actionRoute?: string;
 };
 
+export type Group = {
+  id: string;
+  name: string;
+  description: string;
+  icon: string; // Ionicons name
+  colorLight: string;
+  colorDark: string;
+  memberCount: number;
+  postCount: number;
+  isJoined?: boolean; // computed client-side per current user
+};
+
 // Fields marked "private" below are only ever meant to be visible to the
 // account owner — once a "view someone else's profile" screen exists, it
 // should read from a getPublicProfile()-style projection that excludes

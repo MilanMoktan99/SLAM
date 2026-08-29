@@ -14,6 +14,7 @@ import ProfileHeader from '@/components/profile/ProfileHeader';
 import InterestTag from '@/components/profile/InterestTag';
 import PrivateInfoRow from '@/components/profile/PrivateInfoRow';
 import EditFieldModal from '@/components/profile/EditFieldModal';
+import VipPromoCard from '@/components/profile/VipPromoCard';
 
 type EditableField =
   | 'email'
@@ -94,6 +95,10 @@ export default function Profile() {
           onPressShare={() => Alert.alert('Share Profile', 'Sharing coming soon.')}
         />
 
+        <View style={styles.vipCardWrapper}>
+          <VipPromoCard isVip={user.isVip} points={user.points} onPress={() => router.push('/vip-rewards')} />
+        </View>
+
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>About me</Text>
           <Text style={[styles.bio, { color: colors.subtleText }]}>{user.bio}</Text>
@@ -165,7 +170,7 @@ export default function Profile() {
             <PrivateInfoRow
               label="Membership"
               value={user.isVip ? 'VIP' : 'Free'}
-              onPress={() => router.push('/(tabs)/vip')}
+              onPress={() => router.push('/vip-rewards')}
             />
             <PrivateInfoRow label="Email" value={user.email} onPress={() => setEditingField('email')} />
             <PrivateInfoRow label="DOB" value={user.dob} onPress={() => setEditingField('dob')} />
@@ -203,6 +208,7 @@ export default function Profile() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  vipCardWrapper: { marginTop: 12 },
   section: { paddingHorizontal: 20, marginTop: 24 },
   sectionTitle: { fontSize: 15, fontFamily: AuthFonts.bold, marginBottom: 10 },
   bio: { fontSize: 13, lineHeight: 20, fontFamily: AuthFonts.regular },

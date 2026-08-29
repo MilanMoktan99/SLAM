@@ -1,0 +1,77 @@
+import { Group } from '@/types/models';
+
+// Placeholder data — replace with a Firestore "groups" collection admins
+// manage later. Note: "Mums" lives here as a group rather than a main Events
+// tab, per the client's explicit feedback.
+export const mockGroups: Group[] = [
+  {
+    id: 'grp-mums',
+    name: 'Mums Community',
+    description: 'A space for mums to connect, share, and support each other.',
+    icon: 'heart',
+    colorLight: '#F9E1E6',
+    colorDark: '#3A2530',
+    memberCount: 241,
+    postCount: 612,
+  },
+  {
+    id: 'grp-new-to-city',
+    name: 'New to the City',
+    description: 'Just moved? Meet other women settling into a new city.',
+    icon: 'location',
+    colorLight: '#DCF3E8',
+    colorDark: '#1F3329',
+    memberCount: 128,
+    postCount: 340,
+  },
+  {
+    id: 'grp-wellness',
+    name: 'Wellness & Self Care',
+    description: 'Mindfulness, movement, and looking after yourself.',
+    icon: 'leaf',
+    colorLight: '#F3EEDD',
+    colorDark: '#332F22',
+    memberCount: 96,
+    postCount: 210,
+  },
+  {
+    id: 'grp-career',
+    name: 'Career & Business Women',
+    description: 'Networking, career advice, and business chat.',
+    icon: 'briefcase',
+    colorLight: '#E6E6E9',
+    colorDark: '#2A2A2D',
+    memberCount: 84,
+    postCount: 175,
+  },
+  {
+    id: 'grp-solo-travel',
+    name: 'Solo Travelers',
+    description: 'Trip planning, travel buddies, and adventure stories.',
+    icon: 'airplane',
+    colorLight: '#F6E3E8',
+    colorDark: '#332027',
+    memberCount: 63,
+    postCount: 98,
+  },
+  {
+    id: 'grp-book-club',
+    name: 'Book Club',
+    description: 'Monthly reads and cozy discussion threads.',
+    icon: 'book',
+    colorLight: '#DCF3E8',
+    colorDark: '#1F3329',
+    memberCount: 47,
+    postCount: 132,
+  },
+  {
+    id: 'grp-fitness',
+    name: 'Fitness Buddies',
+    description: 'Find a workout partner and stay accountable.',
+    icon: 'barbell',
+    colorLight: '#F9E1E6',
+    colorDark: '#3A2530',
+    memberCount: 71,
+    postCount: 154,
+  },
+];

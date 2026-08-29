@@ -102,7 +102,7 @@ export default function EventAttendees() {
               </Text>
               <TouchableOpacity
                 style={[styles.upgradeButton, { backgroundColor: colors.primary }]}
-                onPress={() => router.push('/(tabs)/vip')}
+                onPress={() => router.push('/vip-rewards')}
                 activeOpacity={0.85}
               >
                 <Text style={styles.upgradeText}>Upgrade to VIP</Text>

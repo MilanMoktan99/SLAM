@@ -84,18 +84,18 @@ export default function TabLayout() {
         }}
        />
        <Tabs.Screen
-        name="vip"
+        name="groups"
         options={{
           tabBarIcon: ({ focused }) => (
             <TabBarIcon
-              name="star"
-              outlineName="star-outline"
-              label="VIP"
+              name="people-circle"
+              outlineName="people-circle-outline"
+              label="Groups"
               focused={focused}
             />
           ),
         }}
-       />
+      />
        <Tabs.Screen
         name="profile"
         options={{
