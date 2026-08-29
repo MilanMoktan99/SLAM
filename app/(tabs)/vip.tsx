@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useAuth } from '@/context/AuthContext';
 import { getCurrentUser, updateCurrentUser } from '@/services/userService';
 import { awardPoints } from '@/services/pointsService';
 import { getRewards, redeemReward } from '@/services/rewardsService';
@@ -33,6 +34,7 @@ type ReferralInfo = { code: string; count: number; remainingForFreeVip: number }
 export default function VIP() {
   const colors = useThemeColors();
   const tabBarHeight = useBottomTabBarHeight();
+  const { user: authUser } = useAuth();
 
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -40,17 +42,18 @@ export default function VIP() {
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
+    if (!authUser) return;
     setLoading(true);
     const [userData, rewardsData, referralData] = await Promise.all([
-      getCurrentUser(),
+      getCurrentUser(authUser.uid),
       getRewards(),
-      getReferralInfo(),
+      getReferralInfo(authUser.uid),
     ]);
     setUser(userData);
     setRewards(rewardsData);
     setReferral(referralData);
     setLoading(false);
-  }, []);
+  }, [authUser]);
 
   useFocusEffect(
     useCallback(() => {
@@ -59,14 +62,16 @@ export default function VIP() {
   );
 
   const handleUpgrade = async (plan: 'monthly' | 'annual') => {
-    await updateCurrentUser({ isVip: true, vipPlan: plan });
-    await awardPoints('Joined VIP', POINTS_RULES.joinVip);
+    if (!authUser) return;
+    await updateCurrentUser(authUser.uid, { isVip: true, vipPlan: plan });
+    await awardPoints(authUser.uid, 'Joined VIP', POINTS_RULES.joinVip);
     Alert.alert('Welcome to VIP', "You're now a SLAM VIP member — your points now earn 1.5x faster.");
     loadData();
   };
 
   const handleRedeem = async (reward: Reward) => {
-    const result = await redeemReward(reward.id);
+    if (!authUser) return;
+    const result = await redeemReward(reward.id, authUser.uid);
     Alert.alert(result.success ? 'Reward redeemed' : "Can't redeem yet", result.message);
     if (result.success) loadData();
   };

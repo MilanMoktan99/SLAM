@@ -1,10 +1,12 @@
+import { doc, getDoc, setDoc, increment } from 'firebase/firestore';
+import { db } from '@/config/firebase';
 import { Reward, RewardRedemption } from '@/types/models';
 import { mockRewards } from '@/data/mockRewards';
-import { mockCurrentUser } from '@/data/mockUser';
 
-// In-memory only for now.
-// TODO(firebase): move redemptions to a "redemptions" collection so admins
-// can mark them pending/collected/expired (requirement #15).
+// Redemption records are still in-memory for now — no dedicated Firestore
+// collection for these yet (requirement #15, "mark rewards pending/collected").
+// Points are real, though: redeeming genuinely deducts from the user's real
+// Firestore balance.
 const redemptions: RewardRedemption[] = [];
 let nextId = 1;
 
@@ -18,17 +20,26 @@ export async function getRedemptions(): Promise<RewardRedemption[]> {
 
 type RedeemResult = { success: boolean; message: string };
 
-export async function redeemReward(rewardId: string): Promise<RedeemResult> {
+export async function redeemReward(rewardId: string, userId: string): Promise<RedeemResult> {
   const reward = mockRewards.find((r) => r.id === rewardId);
   if (!reward) return { success: false, message: 'Reward not found.' };
-  if (reward.vipOnly && !mockCurrentUser.isVip) {
+
+  const userSnap = await getDoc(doc(db, 'users', userId));
+  const userData = userSnap.exists() ? userSnap.data() : {};
+  const isVip = !!userData.isVip;
+  const currentPoints = userData.points ?? 0;
+
+  if (reward.vipOnly && !isVip) {
     return { success: false, message: 'This reward is only available to VIP members.' };
   }
-  if (mockCurrentUser.points < reward.pointsRequired) {
+  if (currentPoints < reward.pointsRequired) {
     return { success: false, message: "You don't have enough SLAM Points for this reward yet." };
   }
 
-  mockCurrentUser.points -= reward.pointsRequired;
+  // setDoc + merge instead of updateDoc — see onboardingService.ts for why:
+  // updateDoc requires the doc to already exist, setDoc/merge doesn't.
+  await setDoc(doc(db, 'users', userId), { points: increment(-reward.pointsRequired) }, { merge: true });
+
   redemptions.unshift({
     id: `redeem-${nextId++}`,
     rewardId: reward.id,

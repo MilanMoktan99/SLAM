@@ -1,7 +1,19 @@
-import { collection, doc, addDoc, getDocs, query, orderBy, serverTimestamp, updateDoc, increment } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  addDoc,
+  getDoc,
+  getDocs,
+  query,
+  orderBy,
+  serverTimestamp,
+  updateDoc,
+  increment,
+} from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { Comment } from '@/types/models';
 import { getDisplayProfile } from '@/services/profileService';
+import { createNotification } from '@/services/notificationsService';
 import { formatRelativeTime } from '@/utils/time';
 
 export async function getComments(postId: string): Promise<Comment[]> {
@@ -38,6 +50,10 @@ export async function addComment(postId: string, userId: string, text: string): 
 
   await updateDoc(doc(db, 'posts', postId), { commentCount: increment(1) });
 
+  notifyPostAuthorOfComment(postId, userId, name).catch((err) =>
+    console.error('Failed to notify post author:', err)
+  );
+
   return {
     id: docRef.id,
     authorName: name,
@@ -45,4 +61,17 @@ export async function addComment(postId: string, userId: string, text: string): 
     text,
     postedAt: 'Just now',
   };
+}
+
+async function notifyPostAuthorOfComment(postId: string, commenterId: string, commenterName: string): Promise<void> {
+  const postSnap = await getDoc(doc(db, 'posts', postId));
+  if (!postSnap.exists()) return;
+  const postData = postSnap.data();
+  if (!postData.authorId || postData.authorId === commenterId) return;
+
+  await createNotification(postData.authorId, {
+    type: 'comment',
+    title: 'New comment',
+    body: `${commenterName} commented on your post.`,
+  });
 }

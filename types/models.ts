@@ -66,20 +66,57 @@ export type Comment = {
   postedAt: string;
 };
 
+export type NotificationType =
+  | 'like'
+  | 'comment'
+  | 'rsvp_confirmed'
+  | 'event_reminder'
+  | 'profile_incomplete'
+  | 'vip_prompt'
+  | 'points_earned';
+ 
+export type AppNotification = {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+  actionRoute?: string;
+};
+
+// Fields marked "private" below are only ever meant to be visible to the
+// account owner — once a "view someone else's profile" screen exists, it
+// should read from a getPublicProfile()-style projection that excludes
+// these, rather than the full CurrentUser shape.
 export type CurrentUser = {
   id: string;
   name: string;
   avatar: string;
   bio: string;
-  interests: string[];
-  email: string;
-  dob: string;
+  // Location
+  city: string;
+  area?: string; // private — more precise than city, self-visible only
+  // Professional
   occupation: string;
-  phone: string;
+  company?: string;
+  education?: string;
+  // Personal
+  dob: string; // private
+  phone: string; // private
+  // Languages
+  languages?: string[];
+  // Interests
+  interests: string[];
+  // Connection
+  connectionGoals?: string[];
+  // Account
+  email: string; // private
   isVip: boolean;
   vipPlan?: VipPlan;
   points: number;
   profileCompleted: boolean;
+  // Referral
   referralCode: string;
   referralCount: number;
 };

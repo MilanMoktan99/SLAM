@@ -2,6 +2,8 @@ import { doc, getDoc, updateDoc, runTransaction, serverTimestamp, increment } fr
 import { db } from '@/config/firebase';
 import { awardPoints } from '@/services/pointsService';
 import { getDisplayProfile } from '@/services/profileService';
+import { createNotification } from '@/services/notificationsService';
+import { scheduleEventReminder } from '@/services/reminderService';
 
 type ActionResult = { success: boolean; message?: string };
 
@@ -50,10 +52,35 @@ export async function rsvpToEvent(eventId: string, userId: string): Promise<Acti
       });
       transaction.update(eventRef, { rsvpCount: increment(1) });
     });
+
+    // Best-effort — neither of these should block the RSVP itself if they fail.
+    notifyRsvpConfirmed(eventId, userId).catch((err) => console.error('Failed to create RSVP notification:', err));
+    scheduleReminderForEvent(eventId).catch((err) => console.error('Failed to schedule event reminder:', err));
+
     return { success: true };
   } catch (err: any) {
     return { success: false, message: err?.message ?? 'Something went wrong RSVPing.' };
   }
+}
+
+async function notifyRsvpConfirmed(eventId: string, userId: string): Promise<void> {
+  const eventSnap = await getDoc(doc(db, 'events', eventId));
+  if (!eventSnap.exists()) return;
+  const title = eventSnap.data().title ?? 'the event';
+
+  await createNotification(userId, {
+    type: 'rsvp_confirmed',
+    title: "You're going!",
+    body: `You're RSVP'd for ${title}. See you there!`,
+    actionRoute: `/event/${eventId}`,
+  });
+}
+
+async function scheduleReminderForEvent(eventId: string): Promise<void> {
+  const eventSnap = await getDoc(doc(db, 'events', eventId));
+  if (!eventSnap.exists()) return;
+  const data = eventSnap.data();
+  await scheduleEventReminder({ title: data.title, date: data.date, time: data.time });
 }
 
 type CheckInResult = ActionResult & { pointsEarned?: number };
@@ -63,9 +90,6 @@ type CheckInResult = ActionResult & { pointsEarned?: number };
  * verified attendance yet (per your requirement, that needs a host-facing
  * QR scan or "mark attended" tool, which doesn't exist yet). This exists so
  * the RSVP-vs-attendance distinction and point values are correct and ready.
- *
- * Points are still awarded through the existing mock pointsService, since
- * Profile/Points hasn't been migrated to Firestore yet — that's next.
  */
 export async function checkInToEvent(
   eventId: string,
@@ -84,7 +108,7 @@ export async function checkInToEvent(
   }
 
   await updateDoc(rsvpRef, { checkedIn: true, checkedInAt: serverTimestamp() });
-  const earned = await awardPoints(`Checked in to ${eventTitle}`, basePoints);
+  const earned = await awardPoints(userId, `Checked in to ${eventTitle}`, basePoints);
 
   return { success: true, pointsEarned: earned };
 }

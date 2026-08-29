@@ -12,32 +12,37 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 
 import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAsyncData } from '@/hooks/useAsyncData';
+import { useAuth } from '@/context/AuthContext';
 import { getCurrentUser, updateCurrentUser } from '@/services/userService';
-import { awardPoints } from '@/services/pointsService';
-import { POINTS_RULES } from '@/data/pointsRules';
+import { prepareProfilePhoto } from '@/services/photoService';
 
 import InterestTag from '@/components/profile/InterestTag';
 import EditFieldModal from '@/components/profile/EditFieldModal';
 
 export default function EditProfile() {
   const colors = useThemeColors();
-  const { data: user, loading } = useAsyncData(getCurrentUser);
+  const { user: authUser } = useAuth();
+  const { data: user, loading } = useAsyncData(() => getCurrentUser(authUser!.uid), [authUser?.uid]);
 
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [interests, setInterests] = useState<string[]>([]);
+  const [avatar, setAvatar] = useState('');
   const [addInterestVisible, setAddInterestVisible] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     if (user) {
       setName(user.name);
       setBio(user.bio);
       setInterests(user.interests);
+      setAvatar(user.avatar);
     }
   }, [user]);
 
@@ -53,19 +58,42 @@ export default function EditProfile() {
     setAddInterestVisible(false);
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    await updateCurrentUser({ name: name.trim(), bio: bio.trim(), interests });
-    // Client requirement #11: 50 points for completing profile — only once,
-    // not on every edit. This is a simple "first save ever" heuristic; a
-    // more complete rule (e.g. bio + interests + photo all filled in) can
-    // replace it once the real backend decides what "complete" means.
-    if (user && !user.profileCompleted) {
-      await updateCurrentUser({ profileCompleted: true });
-      await awardPoints('Completed your profile', POINTS_RULES.completeProfile);
+  const handleChangePhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Please allow photo access to change your profile picture.');
+      return;
     }
-    setSaving(false);
-    router.back();
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    setUploadingPhoto(true);
+    try {
+      const dataUri = await prepareProfilePhoto(result.assets[0].uri);
+      setAvatar(dataUri);
+    } catch (err: any) {
+      Alert.alert('Could not use that photo', err?.message ?? 'Please try again.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!authUser) return;
+    setSaving(true);
+    try {
+      await updateCurrentUser(authUser.uid, { name: name.trim(), bio: bio.trim(), interests, avatar });
+      router.back();
+    } catch (err: any) {
+      Alert.alert('Something went wrong', err?.message ?? 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading || !user) {
@@ -95,17 +123,17 @@ export default function EditProfile() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <TouchableOpacity
           style={styles.avatarWrapper}
-          onPress={() =>
-            Alert.alert(
-              'Change photo',
-              "Photo upload isn't wired up yet — this will connect to your device photos and Firebase Storage later."
-            )
-          }
+          onPress={handleChangePhoto}
           activeOpacity={0.85}
+          disabled={uploadingPhoto}
         >
-          <Image source={{ uri: user.avatar }} style={styles.avatar} />
+          <Image source={{ uri: avatar }} style={styles.avatar} />
           <View style={styles.cameraBadge}>
-            <Ionicons name="camera" size={22} color="#FFFFFF" />
+            {uploadingPhoto ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Ionicons name="camera" size={22} color="#FFFFFF" />
+            )}
           </View>
         </TouchableOpacity>
         <Text style={[styles.email, { color: colors.subtleText }]}>{user.email}</Text>

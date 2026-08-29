@@ -31,7 +31,7 @@ export default function Home() {
   const { data: events, loading: eventsLoading } = useAsyncData(getUpcomingEvents);
   const { data: people, loading: peopleLoading } = useAsyncData(getSuggestedPeople);
   const { posts, loading: postsLoading, toggleLike, bumpCommentCount } = usePostsFeed();
-  const { data: currentUser, loading: userLoading } = useAsyncData(getCurrentUser);
+  const { data: currentUser, loading: userLoading } = useAsyncData(() => getCurrentUser(user!.uid), [user?.uid]);
   const { data: myProfile } = useAsyncData(() => getDisplayProfile(user!.uid), [user?.uid]);
 
   const isLoading = eventsLoading || peopleLoading || postsLoading || userLoading;
@@ -49,9 +49,7 @@ export default function Home() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader
-        onPressNotifications={() => {
-          /* TODO: navigate to notifications */
-        }}
+        onPressNotifications={() => router.push('/notifications')}
         onPressMessages={() => {
           /* TODO: navigate to messages */
         }}

@@ -13,19 +13,8 @@ import {
 import { db } from '@/config/firebase';
 import { Post } from '@/types/models';
 import { getDisplayProfile } from '@/services/profileService';
-
-function formatRelativeTime(date: Date): string {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 60) return 'Just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
-  const weeks = Math.floor(days / 7);
-  return `${weeks} week${weeks === 1 ? '' : 's'} ago`;
-}
+import { createNotification } from '@/services/notificationsService';
+import { formatRelativeTime } from '@/utils/time';
 
 function mapPostDoc(docSnap: any): Post {
   const data = docSnap.data();
@@ -99,7 +88,7 @@ export async function toggleLike(postId: string, userId: string): Promise<{ like
   const postRef = doc(db, 'posts', postId);
   const likeRef = doc(db, 'posts', postId, 'likes', userId);
 
-  return runTransaction(db, async (transaction) => {
+  const result = await runTransaction(db, async (transaction) => {
     const likeSnap = await transaction.get(likeRef);
 
     if (likeSnap.exists()) {
@@ -111,5 +100,26 @@ export async function toggleLike(postId: string, userId: string): Promise<{ like
     transaction.set(likeRef, { userId, createdAt: serverTimestamp() });
     transaction.update(postRef, { likeCount: increment(1) });
     return { liked: true };
+  });
+
+  if (result.liked) {
+    // Best-effort — a failed notification shouldn't undo or block the like itself.
+    notifyPostAuthorOfLike(postId, userId).catch((err) => console.error('Failed to notify post author:', err));
+  }
+
+  return result;
+}
+
+async function notifyPostAuthorOfLike(postId: string, likerId: string): Promise<void> {
+  const postSnap = await getDoc(doc(db, 'posts', postId));
+  if (!postSnap.exists()) return;
+  const postData = postSnap.data();
+  if (!postData.authorId || postData.authorId === likerId) return; // never notify yourself
+
+  const { name: likerName } = await getDisplayProfile(likerId);
+  await createNotification(postData.authorId, {
+    type: 'like',
+    title: 'New like',
+    body: `${likerName} liked your post.`,
   });
 }

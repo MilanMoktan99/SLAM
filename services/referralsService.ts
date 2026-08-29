@@ -1,14 +1,19 @@
-import { mockCurrentUser } from '@/data/mockUser';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/config/firebase';
 import { POINTS_RULES } from '@/data/pointsRules';
 
-// TODO(firebase): real referral tracking needs a deep-link provider (e.g.
-// Firebase Dynamic Links) plus a backend record of who invited whom
+// The referral code itself and the count are both real Firestore fields now
+// (set at signup / incremented if you build real tracking later). Actually
+// crediting a referral when a friend joins still needs a deep-link provider
+// (e.g. Firebase Dynamic Links) — that part remains future work
 // (requirement #15 — "Track referrals" / "See who referred each user").
-// This returns mock counts for now; the share action itself is real.
-export async function getReferralInfo() {
-  return Promise.resolve({
-    code: mockCurrentUser.referralCode,
-    count: mockCurrentUser.referralCount,
-    remainingForFreeVip: Math.max(0, POINTS_RULES.referralsForFreeVip - mockCurrentUser.referralCount),
-  });
+export async function getReferralInfo(userId: string) {
+  const snap = await getDoc(doc(db, 'users', userId));
+  const data = snap.exists() ? snap.data() : {};
+  const count = data.referralCount ?? 0;
+  return {
+    code: data.referralCode ?? '',
+    count,
+    remainingForFreeVip: Math.max(0, POINTS_RULES.referralsForFreeVip - count),
+  };
 }

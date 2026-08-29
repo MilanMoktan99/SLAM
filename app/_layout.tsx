@@ -32,11 +32,13 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  const { isLoggedIn, isLoading } = useAuth();
+  const { isLoggedIn, profileCompleted, isLoading, profileLoading } = useAuth();
 
-  if (isLoading) {
-    return null; // Firebase is restoring the session — avoid flashing onboarding before we know
+  if (isLoading || (isLoggedIn && profileLoading)) {
+    return null; // Firebase is restoring the session and/or profile status — avoid flashing the wrong stack before we know
   }
+
+  const needsProfileSetup = isLoggedIn && !profileCompleted;
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -45,11 +47,16 @@ function RootLayoutNav() {
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         </Stack.Protected>
 
-        <Stack.Protected guard={isLoggedIn}>
+        <Stack.Protected guard={needsProfileSetup}>
+          <Stack.Screen name="(profile-setup)" options={{ headerShown: false }} />
+        </Stack.Protected>
+
+        <Stack.Protected guard={isLoggedIn && profileCompleted}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="event/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="event/[id]/index" options={{ headerShown: false }} />
           <Stack.Screen name="event/[id]/attendees" options={{ headerShown: false }} />
           <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
+          <Stack.Screen name="notifications" options={{ headerShown: false }} />
         </Stack.Protected>
 
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />

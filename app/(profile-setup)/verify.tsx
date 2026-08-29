@@ -1,25 +1,27 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { sendEmailVerification } from 'firebase/auth';
+import { auth } from '@/config/firebase';
 import { AuthColors, AuthFonts } from '@/constants/authTheme';
 import AuthStepIndicator from '@/components/AuthStepIndicator';
-import { useAuth } from '@/context/AuthContext';
-import { awardPoints } from '@/services/pointsService';
-import { POINTS_RULES } from '@/data/pointsRules';
 
-// No SMS/OTP backend yet — this is a placeholder step that just moves the
-// user forward. Swap the button logic for a real check once verification
-// (email link or OTP) is wired up.
+// A real verification email is sent (once automatically at signup, and
+// again here on Resend) — but per your call, continuing isn't gated on
+// actually clicking the link. No blocking OTP/verification step for now.
 export default function Verify() {
   const [resent, setResent] = useState(false);
-  const { signIn } = useAuth();
+
+  const handleResend = () => {
+    if (auth.currentUser) {
+      sendEmailVerification(auth.currentUser).catch(() => {});
+    }
+    setResent(true);
+  };
 
   const handleContinue = () => {
-    // Client requirement #11: 25 points for creating an account.
-    awardPoints('Created your SLAM account', POINTS_RULES.createAccount);
-    // Flipping isLoggedIn makes (tabs) available and (auth) unreachable —
-    // Stack.Protected automatically redirects there, no router call needed.
-    signIn();
+    router.push('/create-profile');
   };
 
   return (
@@ -32,10 +34,11 @@ export default function Verify() {
 
       <Text style={styles.title}>Verify Your Account</Text>
       <Text style={styles.subtitle}>
-        We've sent a verification link to your email. Once confirmed, tap continue below.
+        We've sent a verification link to your email. You can continue setting up your profile now
+        and verify whenever it's convenient.
       </Text>
 
-      <TouchableOpacity onPress={() => setResent(true)}>
+      <TouchableOpacity onPress={handleResend}>
         <Text style={styles.resendText}>{resent ? 'Link resent!' : 'Resend link'}</Text>
       </TouchableOpacity>
 
@@ -58,39 +61,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginVertical: 32,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    fontFamily: AuthFonts.heading,
-    color: AuthColors.text,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
+  title: { fontSize: 20, fontWeight: '700', color: AuthColors.text, textAlign: 'center', marginBottom: 12 },
   subtitle: {
     fontSize: 14,
     color: AuthColors.subtleText,
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 24,
-    fontFamily: AuthFonts.regular,
   },
-  resendText: {
-    color: AuthColors.primary,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 32,
-    fontFamily: AuthFonts.medium,
-  },
+  resendText: { color: AuthColors.primary, fontWeight: '600', textAlign: 'center', marginBottom: 32 },
   primaryButton: {
     backgroundColor: AuthColors.primary,
     borderRadius: 28,
     paddingVertical: 16,
     alignItems: 'center',
   },
-  primaryButtonText: {
-    color: AuthColors.white,
-    fontSize: 16,
-    fontWeight: '700',
-    fontFamily: AuthFonts.bold,
-  },
+  primaryButtonText: { color: AuthColors.white, fontSize: 16, fontWeight: '700' },
 });

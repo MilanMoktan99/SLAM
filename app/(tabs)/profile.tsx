@@ -15,19 +15,32 @@ import InterestTag from '@/components/profile/InterestTag';
 import PrivateInfoRow from '@/components/profile/PrivateInfoRow';
 import EditFieldModal from '@/components/profile/EditFieldModal';
 
-type EditableField = 'email' | 'dob' | 'occupation' | 'phone' | null;
+type EditableField =
+  | 'email'
+  | 'dob'
+  | 'phone'
+  | 'area'
+  | 'city'
+  | 'occupation'
+  | 'company'
+  | 'education'
+  | null;
 
 const FIELD_LABELS: Record<Exclude<EditableField, null>, string> = {
   email: 'Email',
   dob: 'Date of Birth',
-  occupation: 'Occupation',
   phone: 'Phone',
+  area: 'Area',
+  city: 'City',
+  occupation: 'Occupation',
+  company: 'Company',
+  education: 'Education',
 };
 
 export default function Profile() {
   const colors = useThemeColors();
   const tabBarHeight = useBottomTabBarHeight();
-  const { signOut } = useAuth();
+  const { user: authUser, signOut } = useAuth();
 
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,9 +51,10 @@ export default function Profile() {
   // as soon as you come back, without any extra plumbing.
   useFocusEffect(
     useCallback(() => {
+      if (!authUser) return;
       let active = true;
       setLoading(true);
-      getCurrentUser().then((data) => {
+      getCurrentUser(authUser.uid).then((data) => {
         if (active) {
           setUser(data);
           setLoading(false);
@@ -49,12 +63,12 @@ export default function Profile() {
       return () => {
         active = false;
       };
-    }, [])
+    }, [authUser])
   );
 
   const handleSaveField = async (value: string) => {
-    if (!editingField) return;
-    const updated = await updateCurrentUser({ [editingField]: value });
+    if (!editingField || !authUser) return;
+    const updated = await updateCurrentUser(authUser.uid, { [editingField]: value });
     setUser(updated);
     setEditingField(null);
   };
@@ -66,6 +80,8 @@ export default function Profile() {
       </View>
     );
   }
+
+  const hasDetails = !!(user.city || user.occupation || user.company || user.education);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -92,6 +108,57 @@ export default function Profile() {
           </View>
         </View>
 
+        {user.languages && user.languages.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Languages</Text>
+            <View style={styles.interestsWrap}>
+              {user.languages.map((lang) => (
+                <InterestTag key={lang} label={lang} />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {user.connectionGoals && user.connectionGoals.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Looking to connect for</Text>
+            <View style={styles.interestsWrap}>
+              {user.connectionGoals.map((goal) => (
+                <InterestTag key={goal} label={goal} />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {hasDetails ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Details</Text>
+            <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              {user.city ? (
+                <PrivateInfoRow label="City" value={user.city} onPress={() => setEditingField('city')} />
+              ) : null}
+              {user.occupation ? (
+                <PrivateInfoRow
+                  label="Occupation"
+                  value={user.occupation}
+                  onPress={() => setEditingField('occupation')}
+                />
+              ) : null}
+              {user.company ? (
+                <PrivateInfoRow label="Company" value={user.company} onPress={() => setEditingField('company')} />
+              ) : null}
+              {user.education ? (
+                <PrivateInfoRow
+                  label="Education"
+                  value={user.education}
+                  isLast
+                  onPress={() => setEditingField('education')}
+                />
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>Private Information</Text>
           <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -102,12 +169,13 @@ export default function Profile() {
             />
             <PrivateInfoRow label="Email" value={user.email} onPress={() => setEditingField('email')} />
             <PrivateInfoRow label="DOB" value={user.dob} onPress={() => setEditingField('dob')} />
+            <PrivateInfoRow label="Phone" value={user.phone} onPress={() => setEditingField('phone')} />
             <PrivateInfoRow
-              label="Occupation"
-              value={user.occupation}
-              onPress={() => setEditingField('occupation')}
+              label="Area"
+              value={user.area || 'Not set'}
+              isLast
+              onPress={() => setEditingField('area')}
             />
-            <PrivateInfoRow label="Phone" value={user.phone} isLast onPress={() => setEditingField('phone')} />
           </View>
         </View>
 
@@ -120,7 +188,7 @@ export default function Profile() {
         <EditFieldModal
           visible={!!editingField}
           title={`Edit ${FIELD_LABELS[editingField]}`}
-          initialValue={String(user[editingField])}
+          initialValue={String(user[editingField] ?? '')}
           keyboardType={
             editingField === 'email' ? 'email-address' : editingField === 'phone' ? 'phone-pad' : 'default'
           }

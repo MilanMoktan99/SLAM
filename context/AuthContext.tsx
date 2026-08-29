@@ -6,8 +6,10 @@ import {
   signOut as firebaseSignOut,
   type User,
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
+import { generateReferralCode } from '@/utils/referralCode';
+import { POINTS_RULES } from '@/data/pointsRules';
 
 type SignUpDetails = {
   fullName: string;
@@ -18,6 +20,8 @@ type AuthContextType = {
   user: User | null;
   isLoggedIn: boolean;
   isLoading: boolean;
+  profileCompleted: boolean;
+  profileLoading: boolean;
   signUp: (email: string, password: string, details: SignUpDetails) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -36,31 +40,70 @@ export function useAuth() {
 export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [profileCompleted, setProfileCompleted] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   useEffect(() => {
-    // Firebase restores the session from AsyncStorage automatically and
-    // fires this listener once it knows whether someone's logged in —
-    // this is what replaces our old manual SecureStore boolean flag.
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setIsLoading(false);
+      if (!firebaseUser) {
+        setProfileCompleted(false);
+        setProfileLoading(false);
+      }
     });
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    setProfileLoading(true);
+    // Real-time listener — the moment the interests screen writes
+    // profileCompleted: true, this fires and Stack.Protected redirects into
+    // the main app automatically, no manual navigation needed.
+    const unsubscribe = onSnapshot(
+      doc(db, 'users', user.uid),
+      (snap) => {
+        setProfileCompleted(!!snap.data()?.profileCompleted);
+        setProfileLoading(false);
+      },
+      (err) => {
+        console.error('Profile listener error:', err);
+        setProfileLoading(false);
+      }
+    );
+    return unsubscribe;
+  }, [user]);
+
   const signUp = async (email: string, password: string, details: SignUpDetails) => {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
 
-    // Basic profile doc so there's a real Firestore user record to build on.
-    // The full Profile/Points fields get migrated here when we do that part
-    // of the backend — for now this just mirrors what mockUser.ts had.
+    // Full profile shape written up front, so nothing downstream (Profile,
+    // Points, VIP, Referrals) ever reads an undefined field — profile-setup
+    // and edit-profile just update pieces of this same doc later.
+    // Account-creation points (client requirement #11) are credited directly
+    // here rather than via a separate awardPoints() call, since VIP status
+    // is always false for a brand-new account (no multiplier to apply).
     await setDoc(doc(db, 'users', credential.user.uid), {
       name: details.fullName,
       phone: details.phone,
       email,
+      avatar: '',
+      bio: '',
+      city: '',
+      area: '',
+      occupation: '',
+      company: '',
+      education: '',
+      dob: '',
+      languages: [],
+      interests: [],
+      connectionGoals: [],
       isVip: false,
-      points: 0,
+      points: POINTS_RULES.createAccount,
       profileCompleted: false,
+      referralCode: generateReferralCode(details.fullName),
+      referralCount: 0,
       createdAt: serverTimestamp(),
     });
   };
@@ -74,7 +117,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoggedIn: !!user, isLoading, signUp, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{ user, isLoggedIn: !!user, isLoading, profileCompleted, profileLoading, signUp, signIn, signOut }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAsyncData } from '@/hooks/useAsyncData';
+import { useAuth } from '@/context/AuthContext';
 import { getUpcomingEvents } from '@/services/eventsService';
 import { getCurrentUser } from '@/services/userService';
 import { mockExploreCategories } from '@/data/mockExploreCategories';
@@ -23,12 +24,13 @@ const NEARBY_PAGE_SIZE = 2;
 export default function Events() {
   const colors = useThemeColors();
   const tabBarHeight = useBottomTabBarHeight();
+  const { user } = useAuth();
 
   const [refreshKey, setRefreshKey] = useState(0);
   const [seeding, setSeeding] = useState(false);
 
   const { data: events, loading: eventsLoading } = useAsyncData(getUpcomingEvents, [refreshKey]);
-  const { data: currentUser, loading: userLoading } = useAsyncData(getCurrentUser);
+  const { data: currentUser, loading: userLoading } = useAsyncData(() => getCurrentUser(user!.uid), [user?.uid]);
 
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<EventFilterCategory>('all');
