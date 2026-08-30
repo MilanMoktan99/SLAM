@@ -58,6 +58,8 @@ function RootLayoutNav() {
           <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
           <Stack.Screen name="notifications" options={{ headerShown: false }} />
           <Stack.Screen name="vip-rewards" options={{ headerShown: false }} />
+          <Stack.Screen name="chats" options={{ headerShown: false }} />
+          <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
         </Stack.Protected>
 
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />

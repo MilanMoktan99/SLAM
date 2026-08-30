@@ -7,9 +7,11 @@ import { BlurView } from 'expo-blur';
 import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAsyncData } from '@/hooks/useAsyncData';
+import { useAuth } from '@/context/AuthContext';
 import { getAttendees } from '@/services/attendeesService';
 import { getCurrentUser } from '@/services/userService';
 import { hasUsedFreeConnection, isConnected, connectWithPerson } from '@/services/connectionService';
+import { getOrCreateConversation } from '@/services/chatService';
 
 // Client requirement: free members see the first 3 attendees clearly, the
 // rest are blurred with a VIP prompt. VIP members see everyone.
@@ -18,10 +20,15 @@ const FREE_VISIBLE_COUNT = 3;
 export default function EventAttendees() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useThemeColors();
+  const { user: authUser } = useAuth();
   const [, forceRerender] = useState(0); // bump after a successful connect
+  const [messagingId, setMessagingId] = useState<string | null>(null);
 
   const { data: attendees, loading: attendeesLoading } = useAsyncData(() => getAttendees(id), [id]);
-  const { data: currentUser, loading: userLoading } = useAsyncData(getCurrentUser);
+  const { data: currentUser, loading: userLoading } = useAsyncData(
+    () => getCurrentUser(authUser!.uid),
+    [authUser?.uid]
+  );
 
   const isLoading = attendeesLoading || userLoading;
   const isVip = !!currentUser?.isVip;
@@ -46,6 +53,19 @@ export default function EventAttendees() {
     forceRerender((n) => n + 1);
   };
 
+  const handleMessage = async (personId: string) => {
+    if (!authUser) return;
+    setMessagingId(personId);
+    try {
+      const conversationId = await getOrCreateConversation(authUser.uid, personId);
+      router.push(`/chat/${conversationId}`);
+    } catch (err: any) {
+      Alert.alert("Couldn't open chat", err?.message ?? 'Please try again.');
+    } finally {
+      setMessagingId(null);
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <TouchableOpacity style={[styles.backButton, { backgroundColor: colors.primary }]} onPress={() => router.back()}>
@@ -61,24 +81,29 @@ export default function EventAttendees() {
             <View key={person.id} style={styles.row}>
               <Image source={{ uri: person.avatar }} style={styles.avatar} />
               <Text style={[styles.name, { color: colors.text }]}>{person.name}</Text>
-              <TouchableOpacity
-                style={[
-                  styles.connectButton,
-                  { backgroundColor: alreadyConnected || connectDisabled ? colors.border : colors.primary },
-                ]}
-                onPress={() => handleConnect(person.id)}
-                disabled={alreadyConnected || connectDisabled}
-                activeOpacity={0.85}
-              >
-                <Text
-                  style={[
-                    styles.connectText,
-                    { color: alreadyConnected || connectDisabled ? colors.subtleText : colors.onPrimary },
-                  ]}
+              {alreadyConnected ? (
+                <TouchableOpacity
+                  style={[styles.connectButton, { backgroundColor: colors.primary }]}
+                  onPress={() => handleMessage(person.id)}
+                  disabled={messagingId === person.id}
+                  activeOpacity={0.85}
                 >
-                  {alreadyConnected ? 'Connected' : 'Connect'}
-                </Text>
-              </TouchableOpacity>
+                  <Text style={[styles.connectText, { color: colors.onPrimary }]}>
+                    {messagingId === person.id ? 'Opening…' : 'Message'}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.connectButton, { backgroundColor: connectDisabled ? colors.border : colors.primary }]}
+                  onPress={() => handleConnect(person.id)}
+                  disabled={connectDisabled}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.connectText, { color: connectDisabled ? colors.subtleText : colors.onPrimary }]}>
+                    Connect
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           );
         })}

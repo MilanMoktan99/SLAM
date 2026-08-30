@@ -85,6 +85,23 @@ export type AppNotification = {
   actionRoute?: string;
 };
 
+export type Conversation = {
+  id: string;
+  otherUserId: string;
+  otherUserName: string;
+  otherUserAvatar: string;
+  lastMessage: string;
+  lastMessageAt: string;
+  lastMessageSenderId: string;
+};
+ 
+export type ChatMessage = {
+  id: string;
+  senderId: string;
+  text: string;
+  createdAt: string; // formatted clock time, e.g. "3:45 PM"
+};
+
 export type Group = {
   id: string;
   name: string;

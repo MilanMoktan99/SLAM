@@ -30,7 +30,10 @@ export default function Events() {
   const [seeding, setSeeding] = useState(false);
 
   const { data: events, loading: eventsLoading } = useAsyncData(getUpcomingEvents, [refreshKey]);
-  const { data: currentUser, loading: userLoading } = useAsyncData(() => getCurrentUser(user!.uid), [user?.uid]);
+  const { data: currentUser, loading: userLoading } = useAsyncData(
+    () => (user ? getCurrentUser(user.uid) : Promise.resolve(null)),
+    [user?.uid]
+  );
 
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<EventFilterCategory>('all');

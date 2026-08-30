@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, ScrollView, ActivityIndicator, StyleSheet, Share } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { router } from 'expo-router';
@@ -12,6 +12,7 @@ import { getUpcomingEvents } from '@/services/eventsService';
 import { getSuggestedPeople } from '@/services/peopleService';
 import { getCurrentUser } from '@/services/userService';
 import { getDisplayProfile } from '@/services/profileService';
+import { listenToUnreadCount } from '@/services/notificationsService';
 import { Post } from '@/types/models';
 
 import AppHeader from '@/components/home/AppHeader';
@@ -27,12 +28,19 @@ export default function Home() {
   const tabBarHeight = useBottomTabBarHeight();
   const { user } = useAuth();
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const { data: events, loading: eventsLoading } = useAsyncData(getUpcomingEvents);
   const { data: people, loading: peopleLoading } = useAsyncData(getSuggestedPeople);
   const { posts, loading: postsLoading, toggleLike, bumpCommentCount } = usePostsFeed();
   const { data: currentUser, loading: userLoading } = useAsyncData(() => getCurrentUser(user!.uid), [user?.uid]);
   const { data: myProfile } = useAsyncData(() => getDisplayProfile(user!.uid), [user?.uid]);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = listenToUnreadCount(user.uid, setUnreadCount);
+    return unsubscribe;
+  }, [user]);
 
   const isLoading = eventsLoading || peopleLoading || postsLoading || userLoading;
   const nextEvent = events?.[0];
@@ -49,10 +57,9 @@ export default function Home() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader
+        unreadCount={unreadCount}
         onPressNotifications={() => router.push('/notifications')}
-        onPressMessages={() => {
-          /* TODO: navigate to messages */
-        }}
+        onPressMessages={() => router.push('/chats')}
       />
 
       {isLoading ? (
@@ -66,8 +73,8 @@ export default function Home() {
         >
           {nextEvent ? (
             <View style={styles.section}>
-              <SectionHeader title="Upcoming Event" actionLabel="View all" />
-              <EventCard event={nextEvent} />
+              <SectionHeader title="Upcoming Event" actionLabel="View all" onPressAction={() => router.push('/events')} />
+              <EventCard event={nextEvent} onPressRsvp={() => router.push(`/event/${nextEvent.id}`)} onPressAttendees={() => router.push(`/event/${nextEvent.id}/attendees`)} />
             </View>
           ) : null}
 
@@ -110,11 +117,7 @@ export default function Home() {
           ) : null}
 
           {currentUser && !currentUser.isVip ? (
-            <VipBanner
-              onPress={() => {
-                /* TODO: navigate to the VIP tab/upgrade flow */
-              }}
-            />
+            <VipBanner onPress={() => router.push('/vip-rewards')} />
           ) : null}
         </ScrollView>
       )}

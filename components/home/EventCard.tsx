@@ -12,6 +12,7 @@ type Props = {
 
 export default function EventCard({ event, onPressRsvp, onPressAttendees }: Props) {
   const extraAttendees = event.attendeeCount - event.attendeeAvatars.length;
+  const actionLabel = event.pricingType === 'paid' ? 'Get Tickets' : 'RSVP';
 
   return (
     <View style={styles.card}>
@@ -60,7 +61,7 @@ export default function EventCard({ event, onPressRsvp, onPressAttendees }: Prop
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.rsvpButton} onPress={onPressRsvp} activeOpacity={0.85}>
-        <Text style={styles.rsvpText}>RSVP</Text>
+        <Text style={styles.rsvpText}>{actionLabel}</Text>
       </TouchableOpacity>
     </View>
   );
