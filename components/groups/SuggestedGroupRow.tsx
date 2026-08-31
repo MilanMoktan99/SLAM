@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -18,15 +18,22 @@ export default function SuggestedGroupRow({ group, joining, onJoin }: Props) {
 
   return (
     <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={[styles.iconCircle, { backgroundColor: isDark ? group.colorDark : group.colorLight }]}>
-        <Ionicons name={group.icon as any} size={20} color={colors.primary} />
-      </View>
+      {group.image ? (
+        <Image source={{ uri: group.image }} style={styles.image} />
+      ) : (
+        <View style={[styles.iconBox, { backgroundColor: isDark ? group.colorDark : group.colorLight }]}>
+          <Ionicons name={group.icon as any} size={22} color={colors.primary} />
+        </View>
+      )}
       <View style={styles.info}>
         <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
           {group.name}
         </Text>
-        <Text style={[styles.meta, { color: colors.subtleText }]} numberOfLines={1}>
-          {group.memberCount.toLocaleString()} joined · {group.postCount.toLocaleString()} posts
+        <Text style={[styles.description, { color: colors.subtleText }]} numberOfLines={1}>
+          {group.description}
+        </Text>
+        <Text style={[styles.meta, { color: colors.subtleText }]}>
+          {group.memberCount.toLocaleString()} joined
         </Text>
       </View>
       <TouchableOpacity
@@ -35,7 +42,7 @@ export default function SuggestedGroupRow({ group, joining, onJoin }: Props) {
         disabled={joining}
         activeOpacity={0.85}
       >
-        <Text style={[styles.joinText, { color: colors.onPrimary }]}>{joining ? 'Joining…' : 'Join'}</Text>
+        <Text style={[styles.joinText, { color: colors.onPrimary }]}>{joining ? '…' : 'Join'}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -52,10 +59,12 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 12,
   },
-  iconCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  image: { width: 52, height: 52, borderRadius: 12 },
+  iconBox: { width: 52, height: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   info: { flex: 1 },
   name: { fontSize: 14, fontFamily: AuthFonts.bold, marginBottom: 2 },
+  description: { fontSize: 11, fontFamily: AuthFonts.regular, marginBottom: 2 },
   meta: { fontSize: 11, fontFamily: AuthFonts.regular },
-  joinButton: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 8 },
+  joinButton: { borderRadius: 16, paddingHorizontal: 18, paddingVertical: 8 },
   joinText: { fontSize: 12, fontFamily: AuthFonts.bold },
 });

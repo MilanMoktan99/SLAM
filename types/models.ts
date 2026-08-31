@@ -20,6 +20,29 @@ export type EventItem = {
   spotsLeft: number;
   attendeeAvatars: string[];
   attendeeCount: number;
+  formFields?: FormField[]; // custom questions attendees answer at checkout
+  createdBy?: string;
+};
+
+// --- Dynamic event forms (built by the evetn host, filled by attendees) ----
+
+export type FormFieldType = 'text' | 'email' | 'phone' | 'textarea' | 'checkbox' | 'radio' | 'select';
+
+export type FormField = {
+  id: string;
+  label: string;
+  type: FormFieldType;
+  required: boolean;
+  options?: string[]; // for checkbox / radio / select
+};
+
+export type FormResponses = Record<string, string | string[]>;
+
+export type TicketOrder = {
+  orderId: string;
+  amount: number;
+  paymentMethod: string;
+  purchasedAt: string;
 };
 
 export type Attendee = {
@@ -105,13 +128,24 @@ export type ChatMessage = {
 export type Group = {
   id: string;
   name: string;
-  description: string;
-  icon: string; // Ionicons name
+  description: string; // the group's mission / what it's about
+  icon: string; // Ionicons name — used when there's no custom image
+  image?: string; // base64 data URI for user-created groups
   colorLight: string;
   colorDark: string;
   memberCount: number;
   postCount: number;
+  createdBy?: string;
   isJoined?: boolean; // computed client-side per current user
+};
+
+export type GroupMessage = {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar: string;
+  text: string;
+  createdAt: string;
 };
 
 // Fields marked "private" below are only ever meant to be visible to the

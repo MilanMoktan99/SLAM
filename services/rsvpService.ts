@@ -2,6 +2,7 @@ import { doc, getDoc, updateDoc, runTransaction, serverTimestamp, increment } fr
 import { db } from '@/config/firebase';
 import { awardPoints } from '@/services/pointsService';
 import { getDisplayProfile } from '@/services/profileService';
+import { FormResponses, TicketOrder } from '@/types/models';
 import { createNotification } from '@/services/notificationsService';
 import { scheduleEventReminder } from '@/services/reminderService';
 
@@ -9,9 +10,26 @@ type ActionResult = { success: boolean; message?: string };
 
 export async function getRsvpStatus(eventId: string, userId: string) {
   const snap = await getDoc(doc(db, 'events', eventId, 'rsvps', userId));
-  if (!snap.exists()) return { isGoing: false, checkedIn: false };
+  if (!snap.exists()) return { isGoing: false, checkedIn: false, ticket: null as TicketOrder | null };
   const data = snap.data();
-  return { isGoing: true, checkedIn: !!data.checkedIn };
+  return {
+    isGoing: true,
+    checkedIn: !!data.checkedIn,
+    ticket: (data.ticket ?? null) as TicketOrder | null,
+  };
+}
+
+/** Full RSVP record including the attendee's form answers — used by the
+ * confirmation and invoice screens. */
+export async function getRsvpRecord(eventId: string, userId: string) {
+  const snap = await getDoc(doc(db, 'events', eventId, 'rsvps', userId));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return {
+    formResponses: (data.formResponses ?? {}) as FormResponses,
+    ticket: (data.ticket ?? null) as TicketOrder | null,
+    checkedIn: !!data.checkedIn,
+  };
 }
 
 /**
@@ -19,7 +37,12 @@ export async function getRsvpStatus(eventId: string, userId: string) {
  * for the last spot at the same moment can't both get in — Firestore
  * transactions handle that race condition for us.
  */
-export async function rsvpToEvent(eventId: string, userId: string): Promise<ActionResult> {
+export async function rsvpToEvent(
+  eventId: string,
+  userId: string,
+  formResponses: FormResponses = {},
+  ticket: TicketOrder | null = null
+): Promise<ActionResult> {
   const eventRef = doc(db, 'events', eventId);
   const rsvpRef = doc(db, 'events', eventId, 'rsvps', userId);
 
@@ -49,6 +72,8 @@ export async function rsvpToEvent(eventId: string, userId: string): Promise<Acti
         rsvpAt: serverTimestamp(),
         checkedIn: false,
         checkedInAt: null,
+        formResponses,
+        ticket,
       });
       transaction.update(eventRef, { rsvpCount: increment(1) });
     });

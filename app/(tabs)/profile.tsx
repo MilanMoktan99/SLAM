@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
@@ -94,6 +95,16 @@ export default function Profile() {
           onPressEdit={() => router.push('/edit-profile')}
           onPressShare={() => Alert.alert('Share Profile', 'Sharing coming soon.')}
         />
+
+        <TouchableOpacity
+          style={styles.myConnectionsLink}
+          onPress={() => router.push('/my-connections')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="people-outline" size={16} color={colors.primary} />
+          <Text style={[styles.myConnectionsText, { color: colors.primary }]}>My Connections</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+        </TouchableOpacity>
 
         <View style={styles.vipCardWrapper}>
           <VipPromoCard isVip={user.isVip} points={user.points} onPress={() => router.push('/vip-rewards')} />
@@ -208,6 +219,14 @@ export default function Profile() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  myConnectionsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 12,
+  },
+  myConnectionsText: { fontSize: 13, fontFamily: AuthFonts.bold },
   vipCardWrapper: { marginTop: 12 },
   section: { paddingHorizontal: 20, marginTop: 24 },
   sectionTitle: { fontSize: 15, fontFamily: AuthFonts.bold, marginBottom: 10 },

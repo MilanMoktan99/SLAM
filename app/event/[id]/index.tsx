@@ -18,7 +18,7 @@ import { useAsyncData } from '@/hooks/useAsyncData';
 import { useAuth } from '@/context/AuthContext';
 import { getEventById } from '@/services/eventsService';
 import { getAttendees } from '@/services/attendeesService';
-import { getRsvpStatus, rsvpToEvent, checkInToEvent } from '@/services/rsvpService';
+import { getRsvpStatus, checkInToEvent } from '@/services/rsvpService';
 
 import ScriptHeading from '@/components/events/ScriptHeading';
 import PricingCard from '@/components/events/PricingCard';
@@ -65,24 +65,23 @@ export default function EventDetail() {
   const previewAvatars = (attendees ?? []).slice(0, 3).map((a) => a.avatar);
   const previewNames = (attendees ?? []).slice(0, 2).map((a) => a.name.split(' ')[0]);
   const isPaid = event.pricingType === 'paid';
-  const actionLabel = isPaid ? 'Tickets' : isGoing ? "You're Going ✓" : 'RSVP';
+  const actionLabel = isGoing
+    ? isPaid
+      ? 'View Ticket'
+      : "You're Going ✓ — View details"
+    : isPaid
+      ? 'Get Tickets'
+      : 'RSVP';
 
-  const handleAction = async () => {
-    if (isPaid) {
-      Alert.alert('Tickets', "Checkout isn't wired up yet — this is a placeholder for now.");
+  const handleAction = () => {
+    // Already registered? Jump straight to their invoice (paid) or
+    // confirmation (free) rather than re-running checkout.
+    if (isGoing) {
+      router.push(rsvpStatus.ticket ? `/invoice/${id}` : `/confirmation/${id}`);
       return;
     }
-    if (isGoing || actionLoading) return;
-
-    setActionLoading(true);
-    const result = await rsvpToEvent(id, user!.uid);
-    setActionLoading(false);
-
-    if (!result.success) {
-      Alert.alert("Can't RSVP", result.message ?? 'Something went wrong.');
-      return;
-    }
-    setRefreshKey((k) => k + 1);
+    // Everyone else goes through the checkout form the host built.
+    router.push(`/checkout/${id}`);
   };
 
   // Placeholder for check-in — client requirement #11 is explicit that RSVP
@@ -168,7 +167,7 @@ export default function EventDetail() {
           ]}
           onPress={handleAction}
           activeOpacity={0.85}
-          disabled={(isGoing && !isPaid) || actionLoading}
+          disabled={actionLoading}
         >
           {actionLoading && !isGoing ? (
             <ActivityIndicator color={colors.onPrimary} />

@@ -10,7 +10,7 @@ import { useAsyncData } from '@/hooks/useAsyncData';
 import { useAuth } from '@/context/AuthContext';
 import { getAttendees } from '@/services/attendeesService';
 import { getCurrentUser } from '@/services/userService';
-import { hasUsedFreeConnection, isConnected, connectWithPerson } from '@/services/connectionService';
+import { getConnectionStatus, connectWithPerson } from '@/services/connectionService';
 import { getOrCreateConversation } from '@/services/chatService';
 
 // Client requirement: free members see the first 3 attendees clearly, the
@@ -21,7 +21,8 @@ export default function EventAttendees() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useThemeColors();
   const { user: authUser } = useAuth();
-  const [, forceRerender] = useState(0); // bump after a successful connect
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [connectingId, setConnectingId] = useState<string | null>(null);
   const [messagingId, setMessagingId] = useState<string | null>(null);
 
   const { data: attendees, loading: attendeesLoading } = useAsyncData(() => getAttendees(id), [id]);
@@ -29,11 +30,15 @@ export default function EventAttendees() {
     () => getCurrentUser(authUser!.uid),
     [authUser?.uid]
   );
+  const { data: connectionStatus, loading: statusLoading } = useAsyncData(
+    () => getConnectionStatus(authUser!.uid),
+    [authUser?.uid, refreshKey]
+  );
 
-  const isLoading = attendeesLoading || userLoading;
+  const isLoading = attendeesLoading || userLoading || statusLoading;
   const isVip = !!currentUser?.isVip;
 
-  if (isLoading || !attendees) {
+  if (isLoading || !attendees || !connectionStatus) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.primary} size="large" />
@@ -45,12 +50,15 @@ export default function EventAttendees() {
   const hiddenAttendees = isVip ? [] : attendees.slice(FREE_VISIBLE_COUNT);
 
   const handleConnect = async (personId: string) => {
-    const result = await connectWithPerson(id, personId, isVip);
+    if (!authUser) return;
+    setConnectingId(personId);
+    const result = await connectWithPerson(authUser.uid, personId, isVip, id);
+    setConnectingId(null);
     if (!result.success) {
       Alert.alert('VIP feature', result.message ?? 'Upgrade to VIP for unlimited connections.');
       return;
     }
-    forceRerender((n) => n + 1);
+    setRefreshKey((k) => k + 1);
   };
 
   const handleMessage = async (personId: string) => {
@@ -74,8 +82,8 @@ export default function EventAttendees() {
 
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         {visibleAttendees.map((person) => {
-          const alreadyConnected = isConnected(id, person.id);
-          const connectDisabled = !isVip && hasUsedFreeConnection(id) && !alreadyConnected;
+          const alreadyConnected = connectionStatus.connectedIds.has(person.id);
+          const connectDisabled = !isVip && connectionStatus.hasUsedFree && !alreadyConnected;
 
           return (
             <View key={person.id} style={styles.row}>
@@ -96,11 +104,11 @@ export default function EventAttendees() {
                 <TouchableOpacity
                   style={[styles.connectButton, { backgroundColor: connectDisabled ? colors.border : colors.primary }]}
                   onPress={() => handleConnect(person.id)}
-                  disabled={connectDisabled}
+                  disabled={connectingId === person.id}
                   activeOpacity={0.85}
                 >
                   <Text style={[styles.connectText, { color: connectDisabled ? colors.subtleText : colors.onPrimary }]}>
-                    Connect
+                    {connectingId === person.id ? 'Connecting…' : 'Connect'}
                   </Text>
                 </TouchableOpacity>
               )}

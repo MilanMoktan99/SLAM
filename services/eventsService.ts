@@ -1,6 +1,7 @@
-import { collection, doc, getDoc, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { collection, doc, addDoc, getDoc, getDocs, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { EventItem, EventCategory } from '@/types/models';
+import { EventDraft } from '@/lib/eventDraft';
 
 function mapEventDoc(docSnap: any): EventItem {
   const data = docSnap.data();
@@ -24,6 +25,8 @@ function mapEventDoc(docSnap: any): EventItem {
     // means the small avatar stack on the Home/Events cards is blank for now.
     attendeeAvatars: data.attendeeAvatars ?? [],
     attendeeCount: rsvpCount,
+    formFields: data.formFields ?? undefined,
+    createdBy: data.createdBy ?? undefined,
   };
 }
 
@@ -43,4 +46,29 @@ export async function getEventsByCategory(category: EventCategory | 'all'): Prom
   if (category === 'all') return getUpcomingEvents();
   const snap = await getDocs(query(collection(db, 'events'), where('category', '==', category)));
   return snap.docs.map(mapEventDoc);
+}
+
+/**
+ * Publishes a new event created by a VIP host, including the custom
+ * attendee form they built. Returns the new event's id.
+ */
+export async function createEvent(userId: string, draft: EventDraft): Promise<string> {
+  const docRef = await addDoc(collection(db, 'events'), {
+    title: draft.title,
+    category: draft.category,
+    image: draft.image,
+    date: draft.date,
+    time: draft.time,
+    location: draft.location,
+    description: draft.description,
+    pricingType: draft.pricingType,
+    standardPrice: draft.standardPrice ?? null,
+    vipPrice: draft.vipPrice ?? null,
+    capacity: draft.capacity,
+    rsvpCount: 0,
+    formFields: draft.formFields,
+    createdBy: userId,
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
 }
