@@ -1,5 +1,14 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  StyleSheet,
+  Alert,
+  RefreshControl,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
@@ -7,6 +16,7 @@ import { router } from 'expo-router';
 
 import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { usePullToRefresh, useTabPressRefresh } from '@/hooks/useRefresh';
 import { getCurrentUser, updateCurrentUser } from '@/services/userService';
 import { useAuth } from '@/context/AuthContext';
 import { CurrentUser } from '@/types/models';
@@ -42,7 +52,7 @@ const FIELD_LABELS: Record<Exclude<EditableField, null>, string> = {
 export default function Profile() {
   const colors = useThemeColors();
   const tabBarHeight = useBottomTabBarHeight();
-  const { user: authUser, signOut } = useAuth();
+  const { user: authUser } = useAuth();
 
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,22 +61,26 @@ export default function Profile() {
   // Refetch every time this tab gains focus — this is what makes edits made
   // on the Edit Profile screen (or the quick-edit modal below) show up here
   // as soon as you come back, without any extra plumbing.
+  const reload = useCallback(
+    async (silent = false) => {
+      if (!authUser) return;
+      if (!silent) setLoading(true);
+      const data = await getCurrentUser(authUser.uid);
+      setUser(data);
+      setLoading(false);
+    },
+    [authUser]
+  );
+
   useFocusEffect(
     useCallback(() => {
-      if (!authUser) return;
-      let active = true;
-      setLoading(true);
-      getCurrentUser(authUser.uid).then((data) => {
-        if (active) {
-          setUser(data);
-          setLoading(false);
-        }
-      });
-      return () => {
-        active = false;
-      };
-    }, [authUser])
+      reload();
+    }, [reload])
   );
+
+  const scrollRef = useRef<ScrollView>(null);
+  const { refreshing, onRefresh } = usePullToRefresh(useCallback(() => reload(true), [reload]));
+  useTabPressRefresh(scrollRef, onRefresh);
 
   const handleSaveField = async (value: string) => {
     if (!editingField || !authUser) return;
@@ -83,15 +97,20 @@ export default function Profile() {
     );
   }
 
-  const hasDetails = !!(user.city || user.occupation || user.company || user.education);
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+        }
+      >
         <ProfileHeader
           name={user.name}
           avatar={user.avatar}
-          onPressSettings={() => Alert.alert('Settings', 'Settings screen coming soon.')}
+          onPressSettings={() => router.push('/settings')}
           onPressEdit={() => router.push('/edit-profile')}
           onPressShare={() => Alert.alert('Share Profile', 'Sharing coming soon.')}
         />
@@ -115,14 +134,16 @@ export default function Profile() {
           <Text style={[styles.bio, { color: colors.subtleText }]}>{user.bio}</Text>
         </View>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Interests</Text>
-          <View style={styles.interestsWrap}>
-            {user.interests.map((interest) => (
-              <InterestTag key={interest} label={interest} />
-            ))}
+        {user.interests && user.interests.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Interests</Text>
+            <View style={styles.interestsWrap}>
+              {user.interests.map((interest) => (
+                <InterestTag key={interest} label={interest} />
+              ))}
+            </View>
           </View>
-        </View>
+        ) : null}
 
         {user.languages && user.languages.length > 0 ? (
           <View style={styles.section}>
@@ -146,34 +167,32 @@ export default function Profile() {
           </View>
         ) : null}
 
-        {hasDetails ? (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Details</Text>
-            <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              {user.city ? (
-                <PrivateInfoRow label="City" value={user.city} onPress={() => setEditingField('city')} />
-              ) : null}
-              {user.occupation ? (
-                <PrivateInfoRow
-                  label="Occupation"
-                  value={user.occupation}
-                  onPress={() => setEditingField('occupation')}
-                />
-              ) : null}
-              {user.company ? (
-                <PrivateInfoRow label="Company" value={user.company} onPress={() => setEditingField('company')} />
-              ) : null}
-              {user.education ? (
-                <PrivateInfoRow
-                  label="Education"
-                  value={user.education}
-                  isLast
-                  onPress={() => setEditingField('education')}
-                />
-              ) : null}
-            </View>
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Details</Text>
+          <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <PrivateInfoRow
+              label="City"
+              value={user.city || 'Not set'}
+              onPress={() => setEditingField('city')}
+            />
+            <PrivateInfoRow
+              label="Occupation"
+              value={user.occupation || 'Not set'}
+              onPress={() => setEditingField('occupation')}
+            />
+            <PrivateInfoRow
+              label="Company"
+              value={user.company || 'Not set'}
+              onPress={() => setEditingField('company')}
+            />
+            <PrivateInfoRow
+              label="Education"
+              value={user.education || 'Not set'}
+              isLast
+              onPress={() => setEditingField('education')}
+            />
           </View>
-        ) : null}
+        </View>
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>Private Information</Text>
@@ -195,9 +214,6 @@ export default function Profile() {
           </View>
         </View>
 
-        <Text style={[styles.logoutText, { color: colors.subtleText }]} onPress={signOut}>
-          Log Out
-        </Text>
       </ScrollView>
 
       {editingField ? (
@@ -233,11 +249,4 @@ const styles = StyleSheet.create({
   bio: { fontSize: 13, lineHeight: 20, fontFamily: AuthFonts.regular },
   interestsWrap: { flexDirection: 'row', flexWrap: 'wrap' },
   infoCard: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 16 },
-  logoutText: {
-    textAlign: 'center',
-    marginTop: 32,
-    fontSize: 13,
-    fontFamily: AuthFonts.medium,
-    textDecorationLine: 'underline',
-  },
 });

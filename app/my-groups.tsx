@@ -5,14 +5,14 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemePreference } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useAsyncData } from '@/hooks/useAsyncData';
 import { getMyGroups } from '@/services/groupsService';
 
 export default function MyGroups() {
   const colors = useThemeColors();
-  const isDark = useColorScheme() === 'dark';
+  const isDark = useThemePreference().scheme === 'dark';
   const { user } = useAuth();
   const { data: groups, loading } = useAsyncData(() => getMyGroups(user!.uid), [user?.uid]);
 

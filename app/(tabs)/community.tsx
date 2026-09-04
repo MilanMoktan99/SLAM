@@ -1,5 +1,16 @@
-import React, { useState } from 'react';
-import { View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, Share } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  Image,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+  Alert,
+  Share,
+  RefreshControl,
+} from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -7,15 +18,19 @@ import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAsyncData } from '@/hooks/useAsyncData';
 import { usePostsFeed } from '@/hooks/usePostsFeed';
+import { usePullToRefresh, useTabPressRefresh } from '@/hooks/useRefresh';
 import { useAuth } from '@/context/AuthContext';
 import { createPost } from '@/services/postsService';
 import { getDisplayProfile } from '@/services/profileService';
 import { seedPosts } from '@/scripts/seedPosts'; // TEMP — remove this import once you've seeded once
+import { reportContent } from '@/services/moderationService';
 import { Post } from '@/types/models';
 
 import PostCard from '@/components/home/PostCard';
 import PostComposer from '@/components/community/PostComposer';
 import CreatePostModal from '@/components/community/CreatePostModal';
+import ActionSheet, { SheetAction } from '@/components/common/ActionSheet';
+import ReportModal from '@/components/common/ReportModal';
 import CommentsModal from '@/components/community/CommentsModal';
 
 export default function Community() {
@@ -23,7 +38,23 @@ export default function Community() {
   const tabBarHeight = useBottomTabBarHeight();
   const { user } = useAuth();
 
-  const { posts, loading: postsLoading, refresh, toggleLike, bumpCommentCount } = usePostsFeed();
+  const {
+    posts,
+    savedIds,
+    loading: postsLoading,
+    refresh,
+    toggleLike,
+    bumpCommentCount,
+    toggleSave,
+    hidePost,
+  } = usePostsFeed();
+
+  const [menuPost, setMenuPost] = useState<Post | null>(null);
+  const [reportPost, setReportPost] = useState<Post | null>(null);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const { refreshing, onRefresh } = usePullToRefresh(useCallback(() => refresh(), [refresh]));
+  useTabPressRefresh(scrollRef, onRefresh);
   const { data: myProfile, loading: profileLoading } = useAsyncData(
     () => getDisplayProfile(user!.uid),
     [user?.uid]
@@ -43,11 +74,11 @@ export default function Community() {
     myProfile?.avatar ??
     `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=E85D75&color=fff`;
 
-  const handleSubmitPost = async (content: string) => {
+  const handleSubmitPost = async (content: string, image?: string) => {
     // No try/catch here on purpose — if this throws, CreatePostModal's own
     // handler catches it and shows the error inline, and the modal stays
     // open instead of closing on a failed post.
-    await createPost(content, user!.uid);
+    await createPost(content, user!.uid, image);
     refresh();
     setModalVisible(false);
   };
@@ -73,6 +104,43 @@ export default function Community() {
     }
   };
 
+  const postActions = (post: Post): SheetAction[] => [
+    {
+      key: 'save',
+      label: savedIds.has(post.id) ? 'Remove from saved' : 'Save post',
+      icon: savedIds.has(post.id) ? 'bookmark' : 'bookmark-outline',
+      description: 'Find it later in Settings → Saved',
+      onPress: () => toggleSave(post),
+    },
+    {
+      key: 'share',
+      label: 'Share post',
+      icon: 'share-outline',
+      onPress: () => handleShare(post),
+    },
+    {
+      key: 'hide',
+      label: 'Hide post',
+      icon: 'eye-off-outline',
+      description: "You won't see this in your feed again",
+      onPress: () => hidePost(post.id),
+    },
+    {
+      key: 'report',
+      label: 'Report post',
+      icon: 'flag-outline',
+      destructive: true,
+      onPress: () => setReportPost(post),
+    },
+  ];
+
+  const handleReportPost = async (reason: string, details: string) => {
+    if (!user || !reportPost) return;
+    await reportContent(user.uid, 'post', reportPost.id, reason, details);
+    setReportPost(null);
+    Alert.alert('Report submitted', 'Thanks — our team will review this post.');
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}>
@@ -95,8 +163,12 @@ export default function Community() {
         </View>
       ) : (
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={{ paddingTop: 16, paddingBottom: tabBarHeight + 90 }}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+          }
         >
           {/* TEMP — delete this button once you've seeded Firestore once */}
           <TouchableOpacity
@@ -124,6 +196,9 @@ export default function Community() {
                 onToggleLike={() => toggleLike(post.id)}
                 onPressComment={() => setCommentsPostId(post.id)}
                 onPressShare={() => handleShare(post)}
+                isSaved={savedIds.has(post.id)}
+                onToggleSave={() => toggleSave(post)}
+                onPressMenu={() => setMenuPost(post)}
               />
             ))
           ) : (
@@ -141,6 +216,20 @@ export default function Community() {
       >
         <Ionicons name="add" size={26} color={colors.onPrimary} />
       </TouchableOpacity>
+
+      <ActionSheet
+        visible={!!menuPost}
+        title="POST OPTIONS"
+        actions={menuPost ? postActions(menuPost) : []}
+        onClose={() => setMenuPost(null)}
+      />
+
+      <ReportModal
+        visible={!!reportPost}
+        targetType="post"
+        onClose={() => setReportPost(null)}
+        onSubmit={handleReportPost}
+      />
 
       <CreatePostModal
         visible={modalVisible}

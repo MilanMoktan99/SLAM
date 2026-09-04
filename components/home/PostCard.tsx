@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Image, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -7,10 +7,12 @@ import { Post } from '@/types/models';
 
 type Props = {
   post: Post;
+  isSaved?: boolean;
   onToggleLike?: () => void;
   onPressComment?: () => void;
   onPressShare?: () => void;
-  onPressBookmark?: () => void;
+  onToggleSave?: () => void;
+  onPressMenu?: () => void;
 };
 
 function formatCount(count: number): string {
@@ -21,9 +23,18 @@ function formatCount(count: number): string {
 // Liked state now lives in Firestore (via usePostsFeed), so this component
 // is fully controlled by its parent — it just renders post.likedByMe/likeCount
 // and reports taps upward, rather than managing its own like state.
-export default function PostCard({ post, onToggleLike, onPressComment, onPressShare, onPressBookmark }: Props) {
+export default function PostCard({
+  post,
+  isSaved,
+  onToggleLike,
+  onPressComment,
+  onPressShare,
+  onToggleSave,
+  onPressMenu,
+}: Props) {
   const colors = useThemeColors();
   const liked = !!post.likedByMe;
+  const [imageExpanded, setImageExpanded] = useState(false);
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -33,7 +44,7 @@ export default function PostCard({ post, onToggleLike, onPressComment, onPressSh
           <Text style={[styles.authorName, { color: colors.text }]}>{post.authorName}</Text>
           <Text style={[styles.postedAt, { color: colors.subtleText }]}>{post.postedAt}</Text>
         </View>
-        <TouchableOpacity style={styles.menuButton}>
+        <TouchableOpacity style={styles.menuButton} onPress={onPressMenu} hitSlop={8}>
           <Ionicons name="ellipsis-horizontal" size={18} color={colors.subtleText} />
         </TouchableOpacity>
       </View>
@@ -41,7 +52,9 @@ export default function PostCard({ post, onToggleLike, onPressComment, onPressSh
       <Text style={[styles.content, { color: colors.text }]}>{post.content}</Text>
 
       {post.image ? (
-        <Image source={{ uri: post.image }} style={[styles.postImage, { backgroundColor: colors.background }]} />
+        <TouchableOpacity activeOpacity={0.9} onPress={() => setImageExpanded(true)}>
+          <Image source={{ uri: post.image }} style={[styles.postImage, { backgroundColor: colors.background }]} />
+        </TouchableOpacity>
       ) : null}
 
       <View style={styles.actionsRow}>
@@ -61,10 +74,28 @@ export default function PostCard({ post, onToggleLike, onPressComment, onPressSh
           <Ionicons name="share-outline" size={18} color={colors.subtleText} />
         </TouchableOpacity>
         <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={onPressBookmark}>
-          <Ionicons name="bookmark-outline" size={18} color={colors.subtleText} />
+        <TouchableOpacity onPress={onToggleSave}>
+          <Ionicons
+            name={isSaved ? 'bookmark' : 'bookmark-outline'}
+            size={18}
+            color={isSaved ? colors.primary : colors.subtleText}
+          />
         </TouchableOpacity>
       </View>
+
+      {/* Tap a post image to view it full-screen */}
+      <Modal visible={imageExpanded} transparent animationType="fade" onRequestClose={() => setImageExpanded(false)}>
+        <TouchableOpacity
+          style={styles.lightbox}
+          activeOpacity={1}
+          onPress={() => setImageExpanded(false)}
+        >
+          <Image source={{ uri: post.image }} style={styles.lightboxImage} resizeMode="contain" />
+          <View style={styles.lightboxClose}>
+            <Ionicons name="close" size={22} color="#FFFFFF" />
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -82,4 +113,7 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14, gap: 18 },
   actionItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   actionText: { fontSize: 12, fontFamily: AuthFonts.medium },
+  lightbox: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', alignItems: 'center', justifyContent: 'center' },
+  lightboxImage: { width: '100%', height: '80%' },
+  lightboxClose: { position: 'absolute', top: 60, right: 24 },
 });

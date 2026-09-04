@@ -3,7 +3,7 @@ import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemePreference } from '@/context/ThemeContext';
 import { Group } from '@/types/models';
 
 type Props = {
@@ -13,7 +13,7 @@ type Props = {
 
 export default function MyGroupCard({ group, onPressChat }: Props) {
   const colors = useThemeColors();
-  const isDark = useColorScheme() === 'dark';
+  const isDark = useThemePreference().scheme === 'dark';
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>

@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, Image, TouchableOpacity, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Image, TouchableOpacity, FlatList, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -7,13 +7,48 @@ import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/context/AuthContext';
 import { useAsyncData } from '@/hooks/useAsyncData';
-import { getMyConnections } from '@/services/connectionService';
+import { getMyConnections, disconnectFromPerson } from '@/services/connectionService';
 import { getOrCreateConversation } from '@/services/chatService';
+import ActionSheet, { SheetAction } from '@/components/common/ActionSheet';
 
 export default function MyConnections() {
   const colors = useThemeColors();
   const { user } = useAuth();
-  const { data: connections, loading } = useAsyncData(() => getMyConnections(user!.uid), [user?.uid]);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [menuPerson, setMenuPerson] = useState<{ id: string; name: string } | null>(null);
+  const { data: connections, loading } = useAsyncData(
+    () => getMyConnections(user!.uid),
+    [user?.uid, refreshKey]
+  );
+
+  const personActions = (person: { id: string; name: string }): SheetAction[] => [
+    {
+      key: 'message',
+      label: 'Message',
+      icon: 'chatbubble-outline',
+      onPress: () => handleMessage(person.id),
+    },
+    {
+      key: 'disconnect',
+      label: 'Disconnect',
+      icon: 'person-remove-outline',
+      description: 'Frees up your connection, and deletes your chat',
+      destructive: true,
+      onPress: () =>
+        Alert.alert('Disconnect?', `You'll lose your chat history with ${person.name}.`, [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Disconnect',
+            style: 'destructive',
+            onPress: async () => {
+              if (!user) return;
+              await disconnectFromPerson(user.uid, person.id);
+              setRefreshKey((k) => k + 1);
+            },
+          },
+        ]),
+    },
+  ];
 
   const handleMessage = async (otherUserId: string) => {
     if (!user) return;
@@ -51,7 +86,12 @@ export default function MyConnections() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <TouchableOpacity
+              style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onLongPress={() => setMenuPerson({ id: item.id, name: item.name })}
+              delayLongPress={300}
+              activeOpacity={0.9}
+            >
               <Image source={{ uri: item.avatar }} style={styles.avatar} />
               <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
                 {item.name}
@@ -63,10 +103,16 @@ export default function MyConnections() {
               >
                 <Text style={[styles.messageText, { color: colors.onPrimary }]}>Message</Text>
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           )}
         />
       )}
+      <ActionSheet
+        visible={!!menuPerson}
+        title="CONNECTION OPTIONS"
+        actions={menuPerson ? personActions(menuPerson) : []}
+        onClose={() => setMenuPerson(null)}
+      />
     </View>
   );
 }

@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { View, ScrollView, ActivityIndicator, StyleSheet, Share, Alert } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { View, ScrollView, ActivityIndicator, StyleSheet, Share, Alert, RefreshControl } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { router } from 'expo-router';
 
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAsyncData } from '@/hooks/useAsyncData';
 import { usePostsFeed } from '@/hooks/usePostsFeed';
+import { usePullToRefresh, useTabPressRefresh } from '@/hooks/useRefresh';
 import { useAuth } from '@/context/AuthContext';
 
 import { getUpcomingEvents } from '@/services/eventsService';
@@ -14,6 +15,7 @@ import { getCurrentUser } from '@/services/userService';
 import { getDisplayProfile } from '@/services/profileService';
 import { listenToUnreadCount } from '@/services/notificationsService';
 import { getConnectionStatus, connectWithPerson } from '@/services/connectionService';
+import { reportContent } from '@/services/moderationService';
 import { Post } from '@/types/models';
 
 import AppHeader from '@/components/home/AppHeader';
@@ -23,6 +25,8 @@ import PersonCard from '@/components/home/PersonCard';
 import PostCard from '@/components/home/PostCard';
 import VipBanner from '@/components/home/VipBanner';
 import CommentsModal from '@/components/community/CommentsModal';
+import ActionSheet, { SheetAction } from '@/components/common/ActionSheet';
+import ReportModal from '@/components/common/ReportModal';
 
 export default function Home() {
   const colors = useThemeColors();
@@ -32,18 +36,44 @@ export default function Home() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [connectionRefreshKey, setConnectionRefreshKey] = useState(0);
 
-  const { data: events, loading: eventsLoading } = useAsyncData(getUpcomingEvents);
-  const { data: people, loading: peopleLoading } = useAsyncData(
-    () => getSuggestedPeople(user!.uid),
-    [user?.uid]
-  );
-  const { posts, loading: postsLoading, toggleLike, bumpCommentCount } = usePostsFeed();
-  const { data: currentUser, loading: userLoading } = useAsyncData(() => getCurrentUser(user!.uid), [user?.uid]);
+  const { data: events, loading: eventsLoading, refetch: refetchEvents } = useAsyncData(getUpcomingEvents);
+  const {
+    data: people,
+    loading: peopleLoading,
+    refetch: refetchPeople,
+  } = useAsyncData(() => getSuggestedPeople(user!.uid), [user?.uid]);
+  const {
+    posts,
+    savedIds,
+    loading: postsLoading,
+    toggleLike,
+    bumpCommentCount,
+    toggleSave,
+    hidePost,
+    refresh: refreshPosts,
+  } = usePostsFeed();
+
+  const [menuPost, setMenuPost] = useState<Post | null>(null);
+  const [reportPost, setReportPost] = useState<Post | null>(null);
+  const {
+    data: currentUser,
+    loading: userLoading,
+    refetch: refetchUser,
+  } = useAsyncData(() => getCurrentUser(user!.uid), [user?.uid]);
   const { data: myProfile } = useAsyncData(() => getDisplayProfile(user!.uid), [user?.uid]);
-  const { data: connectionStatus } = useAsyncData(
+  const { data: connectionStatus, refetch: refetchConnections } = useAsyncData(
     () => getConnectionStatus(user!.uid),
     [user?.uid, connectionRefreshKey]
   );
+
+  const scrollRef = useRef<ScrollView>(null);
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([refetchEvents(), refetchPeople(), refetchUser(), refetchConnections(), refreshPosts()]);
+  }, [refetchEvents, refetchPeople, refetchUser, refetchConnections, refreshPosts]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(refreshAll);
+  useTabPressRefresh(scrollRef, onRefresh);
 
   useEffect(() => {
     if (!user) return;
@@ -62,6 +92,38 @@ export default function Home() {
     Share.share({
       message: `${post.authorName} on SLAM: "${post.content}"`,
     });
+  };
+
+  const postActions = (post: Post): SheetAction[] => [
+    {
+      key: 'save',
+      label: savedIds.has(post.id) ? 'Remove from saved' : 'Save post',
+      icon: savedIds.has(post.id) ? 'bookmark' : 'bookmark-outline',
+      description: 'Find it later in Settings → Saved',
+      onPress: () => toggleSave(post),
+    },
+    { key: 'share', label: 'Share post', icon: 'share-outline', onPress: () => handleShare(post) },
+    {
+      key: 'hide',
+      label: 'Hide post',
+      icon: 'eye-off-outline',
+      description: "You won't see this in your feed again",
+      onPress: () => hidePost(post.id),
+    },
+    {
+      key: 'report',
+      label: 'Report post',
+      icon: 'flag-outline',
+      destructive: true,
+      onPress: () => setReportPost(post),
+    },
+  ];
+
+  const handleReportPost = async (reason: string, details: string) => {
+    if (!user || !reportPost) return;
+    await reportContent(user.uid, 'post', reportPost.id, reason, details);
+    setReportPost(null);
+    Alert.alert('Report submitted', 'Thanks — our team will review this post.');
   };
 
   const handleConnect = async (personId: string) => {
@@ -92,8 +154,12 @@ export default function Home() {
         </View>
       ) : (
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+          }
         >
           {nextEvent ? (
             <View style={styles.section}>
@@ -145,6 +211,9 @@ export default function Home() {
                   onToggleLike={() => toggleLike(post.id)}
                   onPressComment={() => setCommentsPostId(post.id)}
                   onPressShare={() => handleShare(post)}
+                  isSaved={savedIds.has(post.id)}
+                  onToggleSave={() => toggleSave(post)}
+                  onPressMenu={() => setMenuPost(post)}
                 />
               ))}
             </View>
@@ -155,6 +224,20 @@ export default function Home() {
           ) : null}
         </ScrollView>
       )}
+
+      <ActionSheet
+        visible={!!menuPost}
+        title="POST OPTIONS"
+        actions={menuPost ? postActions(menuPost) : []}
+        onClose={() => setMenuPost(null)}
+      />
+
+      <ReportModal
+        visible={!!reportPost}
+        targetType="post"
+        onClose={() => setReportPost(null)}
+        onSubmit={handleReportPost}
+      />
 
       <CommentsModal
         visible={!!commentsPostId}

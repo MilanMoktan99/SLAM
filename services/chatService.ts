@@ -1,4 +1,18 @@
-import { collection, doc, setDoc, addDoc, getDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  setDoc,
+  addDoc,
+  getDoc,
+  getDocs,
+  deleteDoc,
+  writeBatch,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  serverTimestamp,
+} from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { Conversation, ChatMessage } from '@/types/models';
 import { getDisplayProfile } from '@/services/profileService';
@@ -50,13 +64,21 @@ export async function getConversationHeader(conversationId: string, currentUserI
   return { otherUserId, otherUserName: otherInfo.name as string, otherUserAvatar: otherInfo.avatar as string };
 }
 
-/** Live list of the current user's conversations, most recently active first. */
-export function listenToConversations(userId: string, callback: (conversations: Conversation[]) => void) {
-  const q = query(
-    collection(db, 'conversations'),
-    where('participantIds', 'array-contains', userId),
-    orderBy('lastMessageAt', 'desc')
-  );
+/**
+ * Live list of the current user's conversations, most recently active first.
+ *
+ * Note the missing orderBy: combining array-contains with orderBy on a
+ * different field requires a composite Firestore index, which has to be
+ * created by hand in the console and silently breaks the listener until it
+ * exists. Sorting client-side instead keeps this working out of the box —
+ * a person's conversation list is small enough that it costs nothing.
+ */
+export function listenToConversations(
+  userId: string,
+  callback: (conversations: Conversation[]) => void,
+  onError?: (err: Error) => void
+) {
+  const q = query(collection(db, 'conversations'), where('participantIds', 'array-contains', userId));
   return onSnapshot(
     q,
     (snap) => {
@@ -73,11 +95,16 @@ export function listenToConversations(userId: string, callback: (conversations: 
           lastMessage: data.lastMessage ?? '',
           lastMessageAt: formatRelativeTime(lastMessageDate),
           lastMessageSenderId: data.lastMessageSenderId ?? '',
+          sortKey: lastMessageDate.getTime(),
         };
       });
-      callback(conversations);
+      conversations.sort((a, b) => b.sortKey - a.sortKey);
+      callback(conversations.map(({ sortKey, ...rest }) => rest));
     },
-    (err) => console.error('Conversations listener error:', err)
+    (err) => {
+      console.error('Conversations listener error:', err);
+      onError?.(err as Error);
+    }
   );
 }
 
@@ -116,4 +143,39 @@ export async function sendMessage(conversationId: string, senderId: string, text
     { lastMessage: text, lastMessageAt: serverTimestamp(), lastMessageSenderId: senderId },
     { merge: true }
   );
+}
+
+
+/** Deterministic conversation id for a pair of users, exposed so callers can
+ * find (and delete) a conversation without opening it first. */
+export function conversationIdFor(uidA: string, uidB: string): string {
+  return [uidA, uidB].sort().join('_');
+}
+
+/**
+ * Permanently deletes a conversation and all its messages, for both people.
+ * Used when someone disconnects — per the product rule that disconnecting
+ * also ends the chat history.
+ */
+export async function deleteConversation(conversationId: string): Promise<void> {
+  const messagesSnap = await getDocs(collection(db, 'conversations', conversationId, 'messages'));
+  const batch = writeBatch(db);
+  messagesSnap.forEach((docSnap) => batch.delete(docSnap.ref));
+  batch.delete(doc(db, 'conversations', conversationId));
+  await batch.commit();
+}
+
+/** Archiving is per-user — it hides the thread from your list without
+ * affecting the other person or deleting anything. */
+export async function archiveConversation(userId: string, conversationId: string): Promise<void> {
+  await setDoc(doc(db, 'users', userId, 'archivedChats', conversationId), { archivedAt: serverTimestamp() });
+}
+
+export async function unarchiveConversation(userId: string, conversationId: string): Promise<void> {
+  await deleteDoc(doc(db, 'users', userId, 'archivedChats', conversationId));
+}
+
+export async function getArchivedConversationIds(userId: string): Promise<Set<string>> {
+  const snap = await getDocs(collection(db, 'users', userId, 'archivedChats'));
+  return new Set(snap.docs.map((d) => d.id));
 }

@@ -177,6 +177,7 @@ export type CurrentUser = {
   email: string; // private
   isVip: boolean;
   vipPlan?: VipPlan;
+  vipStartedAt?: string; // ISO date — drives the 7-day cancellation window
   points: number;
   profileCompleted: boolean;
   // Referral

@@ -36,3 +36,32 @@ export async function prepareProfilePhoto(localUri: string): Promise<string> {
 
   return `data:image/jpeg;base64,${manipulated.base64}`;
 }
+
+/**
+ * Same base64-into-Firestore approach as above, but sized for a feed post:
+ * wider (900px, aspect ratio preserved) and compressed harder, since post
+ * images are displayed much larger than an avatar.
+ *
+ * Video is deliberately not supported here — even a few seconds of footage
+ * is several MB, far past Firestore's 1MB document cap, so there's no
+ * base64 workaround that fits. Video needs real file storage (Firebase
+ * Storage on the Blaze plan, or an external host).
+ */
+export async function preparePostPhoto(localUri: string): Promise<string> {
+  const manipulated = await ImageManipulator.manipulateAsync(
+    localUri,
+    [{ resize: { width: 900 } }], // height omitted — keeps the original aspect ratio
+    { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+  );
+
+  if (!manipulated.base64) {
+    throw new Error('Could not process the selected photo. Please try a different one.');
+  }
+
+  const approxBytes = (manipulated.base64.length * 3) / 4;
+  if (approxBytes > 700_000) {
+    throw new Error('That photo is too large even after compression. Please try a smaller one.');
+  }
+
+  return `data:image/jpeg;base64,${manipulated.base64}`;
+}

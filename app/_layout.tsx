@@ -3,8 +3,8 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { ThemeProvider as AppThemeProvider, useThemePreference } from '@/context/ThemeContext';
 import {
   useFonts,
   Outfit_400Regular,
@@ -24,14 +24,16 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <AppThemeProvider>
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
+    </AppThemeProvider>
   );
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  const { scheme } = useThemePreference();
   const { isLoggedIn, profileCompleted, isLoading, profileLoading } = useAuth();
 
   if (isLoading || (isLoggedIn && profileLoading)) {
@@ -41,7 +43,7 @@ function RootLayoutNav() {
   const needsProfileSetup = isLoggedIn && !profileCompleted;
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Protected guard={!isLoggedIn}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
@@ -71,6 +73,18 @@ function RootLayoutNav() {
           <Stack.Screen name="payment/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="confirmation/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="invoice/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="settings" options={{ headerShown: false }} />
+          <Stack.Screen name="settings-appearance" options={{ headerShown: false }} />
+          <Stack.Screen name="settings-notifications" options={{ headerShown: false }} />
+          <Stack.Screen name="settings-language" options={{ headerShown: false }} />
+          <Stack.Screen name="settings-account" options={{ headerShown: false }} />
+          <Stack.Screen name="settings-account-status" options={{ headerShown: false }} />
+          <Stack.Screen name="settings-privacy" options={{ headerShown: false }} />
+          <Stack.Screen name="settings-help" options={{ headerShown: false }} />
+          <Stack.Screen name="saved" options={{ headerShown: false }} />
+          <Stack.Screen name="orders" options={{ headerShown: false }} />
+          <Stack.Screen name="vip-checkout" options={{ headerShown: false }} />
+          <Stack.Screen name="manage-subscription" options={{ headerShown: false }} />
         </Stack.Protected>
 
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />

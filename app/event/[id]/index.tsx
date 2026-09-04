@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   Alert,
+  Share,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,10 +20,13 @@ import { useAuth } from '@/context/AuthContext';
 import { getEventById } from '@/services/eventsService';
 import { getAttendees } from '@/services/attendeesService';
 import { getRsvpStatus, checkInToEvent } from '@/services/rsvpService';
+import { reportContent } from '@/services/moderationService';
 
 import ScriptHeading from '@/components/events/ScriptHeading';
 import PricingCard from '@/components/events/PricingCard';
 import AttendeesPreview from '@/components/events/AttendeesPreview';
+import ActionSheet, { SheetAction } from '@/components/common/ActionSheet';
+import ReportModal from '@/components/common/ReportModal';
 import { POINTS_RULES } from '@/data/pointsRules';
 
 // Static for now — swap for a real comments collection later.
@@ -39,6 +43,8 @@ export default function EventDetail() {
   const { user } = useAuth(); // guaranteed non-null here — this route is behind Stack.Protected
   const [refreshKey, setRefreshKey] = useState(0);
   const [actionLoading, setActionLoading] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [reportVisible, setReportVisible] = useState(false);
 
   const { data: event, loading: eventLoading } = useAsyncData(() => getEventById(id), [id, refreshKey]);
   const { data: attendees, loading: attendeesLoading } = useAsyncData(
@@ -72,6 +78,47 @@ export default function EventDetail() {
     : isPaid
       ? 'Get Tickets'
       : 'RSVP';
+
+  const eventActions: SheetAction[] = [
+    {
+      key: 'share',
+      label: 'Share event',
+      icon: 'share-outline',
+      onPress: () =>
+        Share.share({
+          message: `${event.title} on SLAM\n${event.date} · ${event.time}\n${event.location}`,
+        }),
+    },
+    {
+      key: 'attendees',
+      label: "View who's going",
+      icon: 'people-outline',
+      onPress: () => router.push(`/event/${id}/attendees`),
+    },
+    {
+      key: 'copy',
+      label: 'Copy event details',
+      icon: 'copy-outline',
+      onPress: () =>
+        Share.share({
+          message: `${event.title}\n${event.date} · ${event.time}\n${event.location}\n\n${event.description}`,
+        }),
+    },
+    {
+      key: 'report',
+      label: 'Report event',
+      icon: 'flag-outline',
+      destructive: true,
+      onPress: () => setReportVisible(true),
+    },
+  ];
+
+  const handleReportEvent = async (reason: string, details: string) => {
+    if (!user) return;
+    await reportContent(user.uid, 'event', id, reason, details);
+    setReportVisible(false);
+    Alert.alert('Report submitted', 'Thanks — our team will review this event.');
+  };
 
   const handleAction = () => {
     // Already registered? Jump straight to their invoice (paid) or
@@ -117,10 +164,20 @@ export default function EventDetail() {
             <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.heroTopRightRow}>
-            <TouchableOpacity style={[styles.circleButton, { backgroundColor: colors.primary }]}>
+            <TouchableOpacity
+              style={[styles.circleButton, { backgroundColor: colors.primary }]}
+              onPress={() =>
+                Share.share({
+                  message: `${event.title} on SLAM\n${event.date} · ${event.time}\n${event.location}`,
+                })
+              }
+            >
               <Ionicons name="share-outline" size={16} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.circleButton, { backgroundColor: colors.primary }]}>
+            <TouchableOpacity
+              style={[styles.circleButton, { backgroundColor: colors.primary }]}
+              onPress={() => setMenuVisible(true)}
+            >
               <Ionicons name="ellipsis-vertical" size={16} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
@@ -220,6 +277,19 @@ export default function EventDetail() {
         ))}
         <Text style={[styles.seeMore, { color: colors.primary }]}>See more....</Text>
       </View>
+      <ActionSheet
+        visible={menuVisible}
+        title="EVENT OPTIONS"
+        actions={eventActions}
+        onClose={() => setMenuVisible(false)}
+      />
+
+      <ReportModal
+        visible={reportVisible}
+        targetType="event"
+        onClose={() => setReportVisible(false)}
+        onSubmit={handleReportEvent}
+      />
     </ScrollView>
   );
 }

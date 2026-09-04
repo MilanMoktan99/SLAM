@@ -20,9 +20,24 @@ import { useAsyncData } from '@/hooks/useAsyncData';
 import { useAuth } from '@/context/AuthContext';
 import { getCurrentUser, updateCurrentUser } from '@/services/userService';
 import { prepareProfilePhoto } from '@/services/photoService';
+import { interestOptions } from '@/data/interestOptions';
+import { languageOptions } from '@/data/languageOptions';
+import { connectionGoalOptions } from '@/data/connectionGoalOptions';
 
 import InterestTag from '@/components/profile/InterestTag';
-import EditFieldModal from '@/components/profile/EditFieldModal';
+import SelectTagsModal from '@/components/profile/SelectTagsModal';
+
+type TagField = 'interests' | 'languages' | 'connectionGoals';
+
+const TAG_CONFIG: Record<TagField, { title: string; options: string[]; placeholder: string }> = {
+  interests: { title: 'Interests', options: interestOptions, placeholder: 'Add your own interest...' },
+  languages: { title: 'Languages', options: languageOptions, placeholder: 'Add another language...' },
+  connectionGoals: {
+    title: 'Looking to connect for',
+    options: connectionGoalOptions,
+    placeholder: 'Add your own...',
+  },
+};
 
 export default function EditProfile() {
   const colors = useThemeColors();
@@ -31,31 +46,38 @@ export default function EditProfile() {
 
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
-  const [interests, setInterests] = useState<string[]>([]);
   const [avatar, setAvatar] = useState('');
-  const [addInterestVisible, setAddInterestVisible] = useState(false);
+  const [interests, setInterests] = useState<string[]>([]);
+  const [languages, setLanguages] = useState<string[]>([]);
+  const [connectionGoals, setConnectionGoals] = useState<string[]>([]);
+  const [editingField, setEditingField] = useState<TagField | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      setName(user.name);
-      setBio(user.bio);
-      setInterests(user.interests);
-      setAvatar(user.avatar);
-    }
+    if (!user) return;
+    setName(user.name);
+    setBio(user.bio);
+    setAvatar(user.avatar);
+    setInterests(user.interests ?? []);
+    setLanguages(user.languages ?? []);
+    setConnectionGoals(user.connectionGoals ?? []);
   }, [user]);
 
-  const handleRemoveInterest = (interest: string) => {
-    setInterests((prev) => prev.filter((item) => item !== interest));
+  const valuesFor = (field: TagField) =>
+    field === 'interests' ? interests : field === 'languages' ? languages : connectionGoals;
+
+  const setValuesFor = (field: TagField, next: string[]) => {
+    if (field === 'interests') setInterests(next);
+    else if (field === 'languages') setLanguages(next);
+    else setConnectionGoals(next);
   };
 
-  const handleAddInterest = (value: string) => {
-    const trimmed = value.trim();
-    if (trimmed && !interests.includes(trimmed)) {
-      setInterests((prev) => [...prev, trimmed]);
-    }
-    setAddInterestVisible(false);
+  const removeTag = (field: TagField, value: string) => {
+    setValuesFor(
+      field,
+      valuesFor(field).filter((item) => item !== value)
+    );
   };
 
   const handleChangePhoto = async () => {
@@ -74,8 +96,7 @@ export default function EditProfile() {
 
     setUploadingPhoto(true);
     try {
-      const dataUri = await prepareProfilePhoto(result.assets[0].uri);
-      setAvatar(dataUri);
+      setAvatar(await prepareProfilePhoto(result.assets[0].uri));
     } catch (err: any) {
       Alert.alert('Could not use that photo', err?.message ?? 'Please try again.');
     } finally {
@@ -87,7 +108,14 @@ export default function EditProfile() {
     if (!authUser) return;
     setSaving(true);
     try {
-      await updateCurrentUser(authUser.uid, { name: name.trim(), bio: bio.trim(), interests, avatar });
+      await updateCurrentUser(authUser.uid, {
+        name: name.trim(),
+        bio: bio.trim(),
+        avatar,
+        interests,
+        languages,
+        connectionGoals,
+      });
       router.back();
     } catch (err: any) {
       Alert.alert('Something went wrong', err?.message ?? 'Please try again.');
@@ -114,7 +142,7 @@ export default function EditProfile() {
           <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
         </TouchableOpacity>
         <TouchableOpacity onPress={handleSave} disabled={saving}>
-          <Text style={[styles.saveText, { color: saving ? colors.subtleText : colors.text }]}>
+          <Text style={[styles.saveText, { color: saving ? colors.subtleText : colors.primary }]}>
             {saving ? 'Saving...' : 'Save'}
           </Text>
         </TouchableOpacity>
@@ -140,50 +168,63 @@ export default function EditProfile() {
 
         <Text style={[styles.fieldLabel, { color: colors.subtleText }]}>Name</Text>
         <TextInput
-          style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+          style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
           value={name}
           onChangeText={setName}
         />
 
         <Text style={[styles.fieldLabel, { color: colors.subtleText }]}>Bio</Text>
         <TextInput
-          style={[styles.input, styles.bioInput, { color: colors.text, borderColor: colors.border }]}
+          style={[
+            styles.input,
+            styles.bioInput,
+            { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface },
+          ]}
           value={bio}
           onChangeText={setBio}
           multiline
         />
 
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Interests</Text>
-        <View style={styles.interestsWrap}>
-          {interests.map((interest) => (
-            <InterestTag
-              key={interest}
-              label={interest}
-              removable
-              onRemove={() => handleRemoveInterest(interest)}
-            />
-          ))}
-          <TouchableOpacity
-            style={[styles.addMoreButton, { borderColor: colors.border }]}
-            onPress={() => setAddInterestVisible(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.addMoreText, { color: colors.text }]}>add more...</Text>
-          </TouchableOpacity>
-        </View>
+        {(Object.keys(TAG_CONFIG) as TagField[]).map((field) => (
+          <View key={field} style={styles.tagSection}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{TAG_CONFIG[field].title}</Text>
+            <View style={styles.tagWrap}>
+              {valuesFor(field).map((value) => (
+                <InterestTag key={value} label={value} removable onRemove={() => removeTag(field, value)} />
+              ))}
+              <TouchableOpacity
+                style={[styles.addMoreButton, { borderColor: colors.border }]}
+                onPress={() => setEditingField(field)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add" size={14} color={colors.text} />
+                <Text style={[styles.addMoreText, { color: colors.text }]}>
+                  {valuesFor(field).length === 0 ? 'Add' : 'Add more...'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
 
         <TouchableOpacity onPress={() => Alert.alert('Social links', 'Coming soon.')}>
           <Text style={[styles.socialLinksText, { color: colors.text }]}>Add Social Links</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      <EditFieldModal
-        visible={addInterestVisible}
-        title="Add Interest"
-        initialValue=""
-        onClose={() => setAddInterestVisible(false)}
-        onSave={handleAddInterest}
-      />
+      {editingField ? (
+        <SelectTagsModal
+          visible={!!editingField}
+          title={TAG_CONFIG[editingField].title}
+          options={TAG_CONFIG[editingField].options}
+          selected={valuesFor(editingField)}
+          placeholder={TAG_CONFIG[editingField].placeholder}
+          onClose={() => setEditingField(null)}
+          onSave={(next) => {
+            setValuesFor(editingField, next);
+            setEditingField(null);
+          }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -227,22 +268,26 @@ const styles = StyleSheet.create({
     fontFamily: AuthFonts.regular,
     marginBottom: 16,
   },
-  bioInput: { minHeight: 70, textAlignVertical: 'top' },
-  sectionTitle: {
-    alignSelf: 'flex-start',
-    fontSize: 14,
-    fontFamily: AuthFonts.bold,
+  bioInput: { minHeight: 80, textAlignVertical: 'top' },
+  tagSection: { alignSelf: 'stretch', marginTop: 8 },
+  sectionTitle: { fontSize: 14, fontFamily: AuthFonts.bold, marginBottom: 10 },
+  tagWrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
+  addMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     marginBottom: 10,
-    marginTop: 6,
   },
-  interestsWrap: { flexDirection: 'row', flexWrap: 'wrap', alignSelf: 'flex-start' },
-  addMoreButton: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 9, marginBottom: 10 },
   addMoreText: { fontSize: 13, fontFamily: AuthFonts.medium },
   socialLinksText: {
     alignSelf: 'flex-start',
     fontSize: 13,
     fontFamily: AuthFonts.medium,
     textDecorationLine: 'underline',
-    marginTop: 8,
+    marginTop: 20,
   },
 });

@@ -19,6 +19,7 @@ import { getEventById } from '@/services/eventsService';
 import { getCurrentUser } from '@/services/userService';
 import { rsvpToEvent } from '@/services/rsvpService';
 import { getCheckoutResponses, clearCheckoutResponses } from '@/lib/checkoutDraft';
+import { recordOrder } from '@/services/ordersService';
 
 const PAYMENT_METHODS = [
   { key: 'paypal', label: 'PayPal', icon: 'logo-paypal' as const },
@@ -75,12 +76,24 @@ export default function Payment() {
     };
 
     const result = await rsvpToEvent(id, user!.uid, responses, ticket);
-    setProcessing(false);
 
     if (!result.success) {
+      setProcessing(false);
       Alert.alert("Couldn't complete purchase", result.message ?? 'Please try again.');
       return;
     }
+
+    // Record it in the user's purchase history (Settings → Orders & payments).
+    await recordOrder(user!.uid, {
+      id: ticket.orderId,
+      eventId: id,
+      eventTitle: event.title,
+      amount: ticket.amount,
+      paymentMethod: ticket.paymentMethod,
+      purchasedAt: ticket.purchasedAt,
+    });
+
+    setProcessing(false);
     clearCheckoutResponses();
     router.replace(`/invoice/${id}`);
   };

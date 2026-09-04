@@ -52,12 +52,21 @@ export default function Connections() {
     if (!authUser) return;
     setConnectingId(personId);
     const result = await connectWithPerson(authUser.uid, personId, isVip);
-    setConnectingId(null);
     if (!result.success) {
+      setConnectingId(null);
       Alert.alert('VIP feature', result.message ?? 'Upgrade to VIP for unlimited connections.');
       return;
     }
     setRefreshKey((k) => k + 1);
+    // Drop them straight into the chat so they can say hi right away.
+    try {
+      const conversationId = await getOrCreateConversation(authUser.uid, personId);
+      router.push(`/chat/${conversationId}`);
+    } catch (err) {
+      console.error('Could not open chat after connecting:', err);
+    } finally {
+      setConnectingId(null);
+    }
   };
 
   const handleMessage = async (personId: string) => {

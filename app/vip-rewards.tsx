@@ -16,11 +16,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/context/AuthContext';
-import { getCurrentUser, updateCurrentUser } from '@/services/userService';
-import { awardPoints } from '@/services/pointsService';
+import { getCurrentUser } from '@/services/userService';
 import { getRewards, redeemReward } from '@/services/rewardsService';
 import { getReferralInfo } from '@/services/referralsService';
-import { POINTS_RULES } from '@/data/pointsRules';
+import { VIP_PLANS } from '@/data/vipPlans';
 import { CurrentUser, Reward } from '@/types/models';
 
 import SectionHeader from '@/components/home/SectionHeader';
@@ -69,12 +68,10 @@ export default function VipRewards() {
     }, [loadData])
   );
 
-  const handleUpgrade = async (plan: 'monthly' | 'annual') => {
-    if (!authUser) return;
-    await updateCurrentUser(authUser.uid, { isVip: true, vipPlan: plan });
-    await awardPoints(authUser.uid, 'Joined VIP', POINTS_RULES.joinVip);
-    Alert.alert('Welcome to VIP', "You're now a SLAM VIP member — your points now earn 1.5x faster.");
-    loadData();
+  // Upgrading now goes through the VIP checkout screen, which handles
+  // payment method selection and activates the subscription there.
+  const handleUpgrade = (plan: 'monthly' | 'annual') => {
+    router.push({ pathname: '/vip-checkout', params: { plan } });
   };
 
   const handleRedeem = async (reward: Reward) => {
@@ -121,12 +118,12 @@ export default function VipRewards() {
             <View style={styles.planRow}>
               <VipPlanCard
                 planName="Monthly VIP"
-                price="$19.99/mo"
+                price={`$${VIP_PLANS.monthly.price}/mo`}
                 onPressUpgrade={() => handleUpgrade('monthly')}
               />
               <VipPlanCard
                 planName="Annual VIP"
-                price="$199/yr"
+                price={`$${VIP_PLANS.annual.price}/yr`}
                 billingNote="Save ~17%"
                 badge="Best value"
                 onPressUpgrade={() => handleUpgrade('annual')}
@@ -142,12 +139,16 @@ export default function VipRewards() {
             </View>
           </View>
         ) : (
-          <View style={[styles.vipStatusCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <TouchableOpacity
+            style={[styles.vipStatusCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push('/manage-subscription')}
+            activeOpacity={0.8}
+          >
             <Text style={[styles.vipStatusTitle, { color: colors.primary }]}>You're a SLAM VIP</Text>
             <Text style={[styles.vipStatusPlan, { color: colors.subtleText }]}>
-              {user.vipPlan === 'annual' ? 'Annual plan' : 'Monthly plan'} · Points earn 1.5x faster
+              {user.vipPlan === 'annual' ? 'Annual plan' : 'Monthly plan'} · Manage subscription
             </Text>
-          </View>
+          </TouchableOpacity>
         )}
 
         <View style={styles.section}>

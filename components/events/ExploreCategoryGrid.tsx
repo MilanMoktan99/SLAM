@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemePreference } from '@/context/ThemeContext';
 import { ExploreCategory } from '@/types/models';
 
 type Props = {
@@ -12,7 +12,7 @@ type Props = {
 
 export default function ExploreCategoryGrid({ categories, onSelect }: Props) {
   const colors = useThemeColors();
-  const isDark = useColorScheme() === 'dark';
+  const isDark = useThemePreference().scheme === 'dark';
 
   return (
     <View style={styles.grid}>

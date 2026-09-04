@@ -1,9 +1,13 @@
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { lightColors, darkColors, ThemeColors } from '@/constants/appTheme';
+import { useThemePreference } from '@/context/ThemeContext';
 
-// Returns the right color palette for the device's current light/dark
-// setting. Used by Home/tabs screens only — auth screens use AuthColors directly.
+/**
+ * Returns the right color palette for the app's current theme. Reads from
+ * ThemeContext (not the device directly) so the Appearance setting —
+ * light / dark / follow device — actually takes effect everywhere.
+ * Used by main-app screens only; auth screens use AuthColors directly.
+ */
 export function useThemeColors(): ThemeColors {
-  const scheme = useColorScheme();
+  const { scheme } = useThemePreference();
   return scheme === 'dark' ? darkColors : lightColors;
 }

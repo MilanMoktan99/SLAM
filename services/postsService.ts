@@ -54,7 +54,7 @@ export async function getLatestPosts(userId?: string): Promise<Post[]> {
  * Creates a new post as the given user. No manual "add to top of feed" step
  * needed — Firestore's orderBy('createdAt', 'desc') handles that automatically.
  */
-export async function createPost(content: string, userId: string): Promise<Post> {
+export async function createPost(content: string, userId: string, image?: string): Promise<Post> {
   const { name: userName, avatar: userAvatar } = await getDisplayProfile(userId);
 
   const docRef = await addDoc(collection(db, 'posts'), {
@@ -62,6 +62,7 @@ export async function createPost(content: string, userId: string): Promise<Post>
     authorName: userName,
     authorAvatar: userAvatar,
     content,
+    image: image ?? null,
     likeCount: 0,
     commentCount: 0,
     createdAt: serverTimestamp(),
@@ -73,6 +74,7 @@ export async function createPost(content: string, userId: string): Promise<Post>
     authorAvatar: userAvatar,
     postedAt: 'Just now',
     content,
+    image,
     likeCount: 0,
     commentCount: 0,
     likedByMe: false,

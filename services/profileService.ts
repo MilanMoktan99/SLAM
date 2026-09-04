@@ -2,15 +2,19 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
 /**
- * Basic display info (name + a generated placeholder avatar) for a user,
- * read from their Firestore profile doc. Used anywhere we need to denormalize
- * "who did this" onto another document (RSVPs, posts, likes, etc.).
- * Swap the generated avatar for their real uploaded photo once Profile photo
- * upload exists.
+ * Basic display info (name + avatar) for a user, read from their Firestore
+ * profile doc. Used anywhere we denormalize "who did this" onto another
+ * document (posts, comments, RSVPs, chat participants, group messages).
+ *
+ * Uses their real uploaded photo when they have one, and only falls back to
+ * a generated initials avatar when they don't.
  */
 export async function getDisplayProfile(userId: string): Promise<{ name: string; avatar: string }> {
   const snap = await getDoc(doc(db, 'users', userId));
-  const name = snap.exists() ? (snap.data().name ?? 'SLAM Member') : 'SLAM Member';
-  const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=E85D75&color=fff`;
+  const data = snap.exists() ? snap.data() : {};
+  const name = data.name ?? 'SLAM Member';
+  const avatar =
+    data.avatar ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=E85D75&color=fff`;
   return { name, avatar };
 }

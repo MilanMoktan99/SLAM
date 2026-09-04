@@ -1,11 +1,21 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+  Alert,
+  RefreshControl,
+} from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { router } from 'expo-router';
 
 import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAsyncData } from '@/hooks/useAsyncData';
+import { usePullToRefresh, useTabPressRefresh } from '@/hooks/useRefresh';
 import { useAuth } from '@/context/AuthContext';
 import { getUpcomingEvents } from '@/services/eventsService';
 import { getCurrentUser } from '@/services/userService';
@@ -29,8 +39,19 @@ export default function Events() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [seeding, setSeeding] = useState(false);
 
-  const { data: events, loading: eventsLoading } = useAsyncData(getUpcomingEvents, [refreshKey]);
-  const { data: currentUser, loading: userLoading } = useAsyncData(() => getCurrentUser(user!.uid), [user?.uid]);
+  const { data: events, loading: eventsLoading, refetch: refetchEvents } = useAsyncData(getUpcomingEvents, [refreshKey]);
+  const {
+    data: currentUser,
+    loading: userLoading,
+    refetch: refetchUser,
+  } = useAsyncData(() => getCurrentUser(user!.uid), [user?.uid]);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const refreshAll = useCallback(async () => {
+    await Promise.all([refetchEvents(), refetchUser()]);
+  }, [refetchEvents, refetchUser]);
+  const { refreshing, onRefresh } = usePullToRefresh(refreshAll);
+  useTabPressRefresh(scrollRef, onRefresh);
 
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<EventFilterCategory>('all');
@@ -78,9 +99,13 @@ export default function Events() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={{ paddingTop: 60, paddingBottom: tabBarHeight + 24 }}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+      }
     >
       {/* TEMP — delete this button once you've seeded Firestore once */}
       <TouchableOpacity

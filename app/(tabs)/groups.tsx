@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Alert,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
@@ -21,6 +22,7 @@ import { useAuth } from '@/context/AuthContext';
 import { getMyGroups, getSuggestedGroups, joinGroup, sortGroups, GroupSort } from '@/services/groupsService';
 import { getCurrentUser } from '@/services/userService';
 import { useAsyncData } from '@/hooks/useAsyncData';
+import { usePullToRefresh, useTabPressRefresh } from '@/hooks/useRefresh';
 import { Group } from '@/types/models';
 
 import SectionHeader from '@/components/home/SectionHeader';
@@ -69,6 +71,10 @@ export default function Groups() {
       load();
     }, [load])
   );
+
+  const scrollRef = useRef<ScrollView>(null);
+  const { refreshing, onRefresh } = usePullToRefresh(load);
+  useTabPressRefresh(scrollRef, onRefresh);
 
   const handleJoin = async (group: Group) => {
     if (!user) return;
@@ -121,8 +127,12 @@ export default function Groups() {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={{ paddingTop: 16, paddingBottom: tabBarHeight + 24 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+        }
       >
         <View style={styles.searchWrapper}>
           <SearchBar value={search} onChangeText={setSearch} />

@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { getDisplayProfile } from '@/services/profileService';
 
@@ -77,4 +77,28 @@ export async function connectWithPerson(
   });
 
   return { success: true };
+}
+
+/**
+ * Removes a connection and deletes the shared conversation with it.
+ *
+ * Per the product rule: disconnecting frees up your connection slot (so a
+ * free member can connect with someone else), but you lose the chat history
+ * with that person — for both sides, since a conversation only exists
+ * between the two of you.
+ */
+export async function disconnectFromPerson(userId: string, otherUserId: string): Promise<void> {
+  const { conversationIdFor, deleteConversation } = await import('@/services/chatService');
+
+  // Disconnecting is mutual — it removes the connection for both people, not
+  // just the one who tapped it. deleteDoc on a doc that doesn't exist is a
+  // harmless no-op, so this is safe even when only one side ever connected.
+  await Promise.all([
+    deleteDoc(doc(db, 'users', userId, 'connections', otherUserId)),
+    deleteDoc(doc(db, 'users', otherUserId, 'connections', userId)),
+  ]);
+
+  // The chat always goes with it — there's one shared conversation between
+  // the two of you, so deleting it ends the history for both sides.
+  await deleteConversation(conversationIdFor(userId, otherUserId));
 }

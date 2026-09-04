@@ -8,13 +8,20 @@ type Props = {
   conversation: Conversation;
   isUnread: boolean;
   onPress: () => void;
+  onLongPress?: () => void;
 };
 
-export default function ConversationRow({ conversation, isUnread, onPress }: Props) {
+export default function ConversationRow({ conversation, isUnread, onPress, onLongPress }: Props) {
   const colors = useThemeColors();
 
   return (
-    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={styles.row}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={300}
+      activeOpacity={0.7}
+    >
       <Image source={{ uri: conversation.otherUserAvatar }} style={styles.avatar} />
       <View style={styles.info}>
         <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
