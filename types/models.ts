@@ -224,3 +224,43 @@ export type PointsTransaction = {
   points: number;
   date: string;
 };
+
+// --- Partners & Perks ---
+ 
+export type PartnerCategory =
+  | 'beauty'
+  | 'wellness'
+  | 'business'
+  | 'fashion'
+  | 'food'
+  | 'kids'
+  | 'retreats'
+  | 'home'
+  | 'other';
+ 
+export type Partner = {
+  id: string;
+  name: string;
+  logo: string;
+  category: PartnerCategory;
+  description: string;
+  website?: string;
+  /** The member offer — the "10% off" line shown on perk cards. */
+  perkTitle: string;
+  perkDetails?: string;
+  perkCode?: string;
+  vipOnly?: boolean;
+  createdBy?: string;
+};
+ 
+export type ShopProduct = {
+  id: string;
+  name: string;
+  image: string;
+  price: number;
+  description: string;
+  partnerId?: string;
+  partnerName?: string;
+  url?: string;
+  createdBy?: string;
+};

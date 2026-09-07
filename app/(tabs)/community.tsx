@@ -12,6 +12,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AuthFonts } from '@/constants/authTheme';
@@ -31,6 +32,7 @@ import PostComposer from '@/components/community/PostComposer';
 import CreatePostModal from '@/components/community/CreatePostModal';
 import ActionSheet, { SheetAction } from '@/components/common/ActionSheet';
 import ReportModal from '@/components/common/ReportModal';
+import PartnersPerksView from '@/components/partners/PartnersPerksView';
 import CommentsModal from '@/components/community/CommentsModal';
 
 export default function Community() {
@@ -49,6 +51,7 @@ export default function Community() {
     hidePost,
   } = usePostsFeed();
 
+  const [view, setView] = useState<'feed' | 'partners'>('feed');
   const [menuPost, setMenuPost] = useState<Post | null>(null);
   const [reportPost, setReportPost] = useState<Post | null>(null);
 
@@ -150,14 +153,43 @@ export default function Community() {
         </View>
         <TouchableOpacity
           style={[styles.createButton, { backgroundColor: colors.primary }]}
-          onPress={() => setModalVisible(true)}
+          onPress={() =>
+            view === 'feed' ? setModalVisible(true) : router.push('/list-business')
+          }
           activeOpacity={0.85}
         >
-          <Text style={[styles.createButtonText, { color: colors.onPrimary }]}>Create Post</Text>
+          <Text style={[styles.createButtonText, { color: colors.onPrimary }]}>
+            {view === 'feed' ? 'Create Post' : 'List Business'}
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {isLoading ? (
+      <View style={[styles.viewTabs, { borderBottomColor: colors.border }]}>
+        {([
+          { key: 'feed', label: 'Feeds' },
+          { key: 'partners', label: 'Partners & Perks' },
+        ] as const).map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={styles.viewTab}
+            onPress={() => setView(tab.key)}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[styles.viewTabLabel, { color: view === tab.key ? colors.primary : colors.subtleText }]}
+            >
+              {tab.label}
+            </Text>
+            {view === tab.key ? (
+              <View style={[styles.viewTabUnderline, { backgroundColor: colors.primary }]} />
+            ) : null}
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {view === 'partners' ? (
+        <PartnersPerksView bottomPadding={tabBarHeight + 90} />
+      ) : isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={colors.primary} size="large" />
         </View>
@@ -209,13 +241,15 @@ export default function Community() {
         </ScrollView>
       )}
 
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary, bottom: tabBarHeight + 20 }]}
-        onPress={() => setModalVisible(true)}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="add" size={26} color={colors.onPrimary} />
-      </TouchableOpacity>
+      {view === 'feed' ? (
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: colors.primary, bottom: tabBarHeight + 20 }]}
+          onPress={() => setModalVisible(true)}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add" size={26} color={colors.onPrimary} />
+        </TouchableOpacity>
+      ) : null}
 
       <ActionSheet
         visible={!!menuPost}
@@ -267,6 +301,10 @@ const styles = StyleSheet.create({
   createButton: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 9 },
   createButtonText: { fontSize: 13, fontFamily: AuthFonts.bold },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  viewTabs: { flexDirection: 'row', borderBottomWidth: 1, paddingHorizontal: 20 },
+  viewTab: { flex: 1, alignItems: 'center', paddingVertical: 12 },
+  viewTabLabel: { fontSize: 14, fontFamily: AuthFonts.bold },
+  viewTabUnderline: { position: 'absolute', bottom: -1, height: 2, width: 60, borderRadius: 1 },
   emptyText: { textAlign: 'center', marginTop: 40, fontSize: 13, fontFamily: AuthFonts.regular },
   seedButton: {
     marginHorizontal: 20,

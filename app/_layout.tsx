@@ -85,6 +85,8 @@ function RootLayoutNav() {
           <Stack.Screen name="orders" options={{ headerShown: false }} />
           <Stack.Screen name="vip-checkout" options={{ headerShown: false }} />
           <Stack.Screen name="manage-subscription" options={{ headerShown: false }} />
+          <Stack.Screen name="partner/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="list-business" options={{ headerShown: false }} />
         </Stack.Protected>
 
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
