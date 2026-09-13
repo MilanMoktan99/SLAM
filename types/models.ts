@@ -252,6 +252,27 @@ export type Partner = {
   vipOnly?: boolean;
   createdBy?: string;
 };
+
+export type CartItem = {
+  productId: string;
+  name: string;
+  image: string;
+  price: number;
+  quantity: number;
+  partnerName?: string;
+};
+ 
+export type ShippingDetails = {
+  fullName: string;
+  email: string;
+  phone: string;
+  address: string;
+  suburb: string;
+  postcode: string;
+};
+ 
+export type OrderType = 'ticket' | 'shop' | 'subscription';
+export type ShopOrderStatus = 'processing' | 'shipped' | 'delivered' | 'cancelled';
  
 export type ShopProduct = {
   id: string;

@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AuthFonts } from '@/constants/authTheme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/context/AuthContext';
+import { useCart } from '@/context/CartContext';
 import { useAsyncData } from '@/hooks/useAsyncData';
 import { usePullToRefresh } from '@/hooks/useRefresh';
 import { getPartners, getProducts } from '@/services/partnersService';
@@ -42,6 +43,7 @@ const SEGMENTS: { key: Segment; label: string }[] = [
 export default function PartnersPerksView({ bottomPadding }: { bottomPadding: number }) {
   const colors = useThemeColors();
   const { user } = useAuth();
+  const { itemCount } = useCart();
 
   const [segment, setSegment] = useState<Segment>('perks');
   const [search, setSearch] = useState('');
@@ -117,7 +119,20 @@ export default function PartnersPerksView({ bottomPadding }: { bottomPadding: nu
             >
               <Ionicons name="options-outline" size={20} color={colors.primary} />
             </TouchableOpacity>
-          ) : null}
+          ) : (
+            <TouchableOpacity
+              style={[styles.filterButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              onPress={() => router.push('/cart')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="bag-outline" size={20} color={colors.primary} />
+              {itemCount > 0 ? (
+                <View style={[styles.cartBadge, { backgroundColor: colors.primary, borderColor: colors.surface }]}>
+                  <Text style={styles.cartBadgeText}>{itemCount > 9 ? '9+' : itemCount}</Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          )}
         </View>
 
         <SegmentTabs segments={SEGMENTS} selected={segment} onSelect={setSegment} />
@@ -255,6 +270,19 @@ const styles = StyleSheet.create({
   controls: { paddingTop: 12 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, marginBottom: 12 },
   filterButton: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  cartBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  cartBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '700' },
   activeFilter: {
     flexDirection: 'row',
     alignItems: 'center',

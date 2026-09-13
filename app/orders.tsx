@@ -47,15 +47,30 @@ export default function Orders() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() => router.push(`/invoice/${item.eventId}`)}
+              onPress={() => {
+                // Each order type has its own receipt screen.
+                if (item.type === 'shop') router.push(`/shop-order/${item.id}`);
+                else if (item.eventId) router.push(`/invoice/${item.eventId}`);
+                else router.push('/manage-subscription');
+              }}
               activeOpacity={0.8}
             >
               <View style={[styles.iconBox, { backgroundColor: colors.background }]}>
-                <Ionicons name="ticket-outline" size={20} color={colors.primary} />
+                <Ionicons
+                  name={
+                    item.type === 'shop'
+                      ? 'bag-outline'
+                      : item.type === 'subscription'
+                        ? 'star-outline'
+                        : 'ticket-outline'
+                  }
+                  size={20}
+                  color={colors.primary}
+                />
               </View>
               <View style={styles.info}>
                 <Text style={[styles.eventTitle, { color: colors.text }]} numberOfLines={1}>
-                  {item.eventTitle}
+                  {item.title}
                 </Text>
                 <Text style={[styles.meta, { color: colors.subtleText }]} numberOfLines={1}>
                   {item.paymentMethod} · {new Date(item.purchasedAt).toLocaleDateString()}

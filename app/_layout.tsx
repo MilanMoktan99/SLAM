@@ -5,6 +5,7 @@ import 'react-native-reanimated';
 
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ThemeProvider as AppThemeProvider, useThemePreference } from '@/context/ThemeContext';
+import { CartProvider } from '@/context/CartContext';
 import {
   useFonts,
   Outfit_400Regular,
@@ -26,7 +27,9 @@ export default function RootLayout() {
   return (
     <AppThemeProvider>
       <AuthProvider>
-        <RootLayoutNav />
+        <CartProvider>
+          <RootLayoutNav />
+        </CartProvider>
       </AuthProvider>
     </AppThemeProvider>
   );
@@ -87,6 +90,9 @@ function RootLayoutNav() {
           <Stack.Screen name="manage-subscription" options={{ headerShown: false }} />
           <Stack.Screen name="partner/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="list-business" options={{ headerShown: false }} />
+          <Stack.Screen name="cart" options={{ headerShown: false }} />
+          <Stack.Screen name="shop-checkout" options={{ headerShown: false }} />
+          <Stack.Screen name="shop-order/[id]" options={{ headerShown: false }} />
         </Stack.Protected>
 
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
